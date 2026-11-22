@@ -1,5 +1,4 @@
 from datetime import datetime
-from enum import StrEnum
 from typing import Any
 from uuid import uuid4
 
@@ -7,44 +6,6 @@ from sqlalchemy import JSON
 from sqlmodel import Field, SQLModel
 
 from app.db.types import UTCDateTime
-
-
-class Status(StrEnum):
-    draft = "draft"
-    ready = "ready"
-    running = "running"
-    paused = "paused"
-    stopped = "stopped"
-
-
-class Outcome(StrEnum):
-    done = "done"
-    partly = "partly"
-    stuck = "stuck"
-
-
-class Familiarity(StrEnum):
-    new = "new"
-    familiar = "familiar"
-
-
-class Source(StrEnum):
-    chat = "chat"
-    retro = "retro"
-    manual = "manual"
-
-
-class EndReason(StrEnum):
-    pause = "pause"
-    stop = "stop"
-    idle = "idle"
-    recovered = "recovered"
-
-
-class ModelLevel(StrEnum):
-    A = "A"
-    B = "B"
-    C = "C"
 
 
 def _id() -> str:
