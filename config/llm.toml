@@ -1,0 +1,21 @@
+# LLM provider chain (ADR 0002). Order is fixed: Groq -> Cerebras -> Gemini.
+# Model ids are placeholders: verify against provider docs in S2 before use.
+timeout_s = 20
+
+[[providers]]
+name = "groq"
+base_url = "https://api.groq.com/openai/v1"
+model = "VERIFY-IN-S2"
+key_env = "GROQ_API_KEY"
+
+[[providers]]
+name = "cerebras"
+base_url = "https://api.cerebras.ai/v1"
+model = "VERIFY-IN-S2"
+key_env = "CEREBRAS_API_KEY"
+
+[[providers]]
+name = "gemini"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
+model = "VERIFY-IN-S2"
+key_env = "GEMINI_API_KEY"
