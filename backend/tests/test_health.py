@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from app.api import health
 from app.main import create_app
 from app.settings import Settings
 
@@ -61,9 +62,9 @@ def test_empty_token_setting_rejects_everything(tmp_path: Path) -> None:
         assert c.get("/api/health", headers={"X-KabTak-Token": ""}).status_code == 401
 
 
-def test_health_reports_db_error(tmp_path: Path) -> None:
-    # a directory can't be opened as a SQLite file
-    s = Settings(token="t0k", db_url=f"sqlite:///{tmp_path.as_posix()}")
+def test_health_reports_db_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(health, "check", lambda _engine: False)
+    s = Settings(token="t0k", db_url=f"sqlite:///{(tmp_path / 'test.db').as_posix()}")
     with TestClient(create_app(s)) as c:
         r = c.get("/api/health", headers=TOKEN)
     assert r.status_code == 200 and r.json()["db"] == "error"
