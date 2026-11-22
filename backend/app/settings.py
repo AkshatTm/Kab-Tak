@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -5,8 +6,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 def default_db_url() -> str:
     # D1: %APPDATA%\KabTak\data.db; shortcut: non-Windows falls back to ~/.kabtak
-    import os
-
     base = Path(os.environ.get("APPDATA") or Path.home() / ".kabtak")
     return f"sqlite:///{(base / 'KabTak' / 'data.db').as_posix()}"
 
