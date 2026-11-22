@@ -166,3 +166,36 @@ def test_unknown_id_is_404_and_bad_transition_409(client: TestClient) -> None:
     assert client.post("/api/tasks/nope/start").status_code == 404
     tid = new(client)["id"]
     assert client.post(f"/api/tasks/{tid}/pause", json={}).status_code == 409
+
+
+def test_bad_patch_and_unknown_ids_are_422_not_500(client: TestClient) -> None:
+    tid = new(client)["id"]
+    assert client.patch(f"/api/tasks/{tid}", json={"title": None}).status_code == 422
+    assert client.patch(f"/api/tasks/{tid}", json={"tentative": None}).status_code == 422
+    assert client.patch(f"/api/tasks/{tid}", json={"category_id": "nope"}).status_code == 422
+    assert client.post("/api/tasks", json={"title": "x", "category_id": "nope"}).status_code == 422
+    bad_part = {"part_type_id": "nope", "planned_qty": 1}
+    assert client.post("/api/tasks", json={"title": "x", "parts": [bad_part]}).status_code == 422
+    assert client.get(f"/api/tasks/{tid}").json()["title"] == "t"  # nothing was half-applied
+
+
+def test_estimate_and_parts_are_frozen_after_first_start(client: TestClient) -> None:
+    pt = client.get("/api/part-types").json()[0]["id"]
+    tid = new(client)["id"]
+    ok = client.patch(f"/api/tasks/{tid}", json={"estimate_min": 45})  # before start: fine
+    assert ok.status_code == 200 and ok.json()["estimate_min"] == 45
+    client.post(f"/api/tasks/{tid}/start")
+    renamed = client.patch(f"/api/tasks/{tid}", json={"title": "renamed"})
+    assert renamed.status_code == 200 and renamed.json()["title"] == "renamed"
+    assert client.patch(f"/api/tasks/{tid}", json={"estimate_min": 5}).status_code == 409
+    parts = {"parts": [{"part_type_id": pt, "planned_qty": 1}]}
+    assert client.patch(f"/api/tasks/{tid}", json=parts).status_code == 409
+    client.post(f"/api/tasks/{tid}/stop", json={"outcome": "done"})
+    assert client.patch(f"/api/tasks/{tid}", json={"estimate_min": 5}).status_code == 409
+    assert client.get(f"/api/tasks/{tid}").json()["estimate_min"] == 45
+
+
+def test_openapi_422_is_fastapis_validation_shape(client: TestClient) -> None:
+    spec = client.app.openapi()  # type: ignore[attr-defined]
+    ref = spec["paths"]["/api/tasks/{task_id}/start"]["post"]["responses"]["422"]
+    assert "HTTPValidationError" in str(ref)

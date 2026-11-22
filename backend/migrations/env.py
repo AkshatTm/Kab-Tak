@@ -12,6 +12,8 @@ with engine.connect() as connection:
         target_metadata=SQLModel.metadata,
         render_as_batch=True,  # SQLite ALTER support
     )
+    # SQLite batch ALTER drops and recreates tables; FK enforcement must be off meanwhile
+    connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
     with context.begin_transaction():
         context.run_migrations()
 engine.dispose()

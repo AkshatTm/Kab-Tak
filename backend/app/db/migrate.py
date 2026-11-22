@@ -27,10 +27,12 @@ def upgrade_with_backup(url: str, script_location: str | Path = MIGRATIONS_DIR) 
                 current = MigrationContext.configure(conn).get_current_revision()
         finally:
             engine.dispose()
-        if current is not None and current != head:
+        bak = Path(f"{db}.bak-{current}")
+        # never overwrite: a retry after a half-failed migration would replace the clean copy
+        if current is not None and current != head and not bak.exists():
             with (
                 closing(sqlite3.connect(db)) as src,
-                closing(sqlite3.connect(f"{db}.bak-{current}")) as dst,
+                closing(sqlite3.connect(bak)) as dst,
             ):
                 src.backup(dst)  # includes un-checkpointed WAL pages
     command.upgrade(cfg, "head")

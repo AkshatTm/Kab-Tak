@@ -22,7 +22,6 @@ Svc = Annotated[TaskService, Depends(get_service)]
 ERR: dict[int | str, dict[str, Any]] = {
     404: {"model": ErrorOut},
     409: {"model": ConflictOut},
-    422: {"model": ErrorOut},
 }
 
 

@@ -91,3 +91,41 @@ def test_migration_matches_models(migrated_url: str) -> None:
         diff = compare_metadata(MigrationContext.configure(conn), SQLModel.metadata)
     engine.dispose()
     assert diff == []
+
+
+def test_existing_backup_is_never_overwritten(tmp_path: Path) -> None:
+    # a half-failed earlier attempt must not replace the clean copy with a damaged DB
+    db = tmp_path / "data.db"
+    url = _url(db)
+    upgrade_with_backup(url, str(_script_dir(tmp_path, 1)))
+    (tmp_path / "data.db.bak-r1").write_bytes(b"clean copy")
+    shutil.rmtree(tmp_path / "scripts")
+    upgrade_with_backup(url, str(_script_dir(tmp_path, 2)))
+    assert (tmp_path / "data.db.bak-r1").read_bytes() == b"clean copy"
+
+
+def test_batch_migration_on_parent_table_survives_foreign_keys(tmp_path: Path) -> None:
+    d = tmp_path / "scripts"
+    (d / "versions").mkdir(parents=True)
+    shutil.copy(MIGRATIONS_DIR / "env.py", d / "env.py")
+    shutil.copy(MIGRATIONS_DIR / "script.py.mako", d / "script.py.mako")
+    (d / "versions" / "r1.py").write_text(
+        "from alembic import op\nrevision = 'r1'\ndown_revision = None\n"
+        "def upgrade() -> None:\n"
+        "    op.execute('CREATE TABLE parent (id INTEGER PRIMARY KEY)')\n"
+        "    op.execute('CREATE TABLE child (id INTEGER PRIMARY KEY, "
+        "p INTEGER REFERENCES parent(id))')\n"
+        "    op.execute('INSERT INTO parent VALUES (1)')\n"
+        "    op.execute('INSERT INTO child VALUES (1, 1)')\n"
+    )
+    (d / "versions" / "r2.py").write_text(
+        "import sqlalchemy as sa\nfrom alembic import op\nrevision = 'r2'\ndown_revision = 'r1'\n"
+        "def upgrade() -> None:\n"
+        "    with op.batch_alter_table('parent') as b:\n"
+        "        b.add_column(sa.Column('note', sa.String))\n"
+    )
+    url = _url(tmp_path / "data.db")
+    upgrade_with_backup(url, str(d))
+    with sqlite3.connect(tmp_path / "data.db") as c:
+        assert c.execute("SELECT id FROM parent").fetchall() == [(1,)]
+        assert c.execute("SELECT p FROM child").fetchall() == [(1,)]

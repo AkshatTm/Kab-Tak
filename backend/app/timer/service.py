@@ -15,7 +15,7 @@ from app.db.session import session_scope
 from app.timer import machine
 from app.timer.clock import Clock
 from app.timer.inputs import PartIn, PauseIn, StopIn, TaskCreate, TaskPatch
-from app.timer.machine import Span, Status
+from app.timer.machine import InvalidTransition, Span, Status
 from app.timer.studyday import parse_cutoff, study_day
 
 # shortcut: one lock = one process. The sidecar is a single process; use a DB-level guard if the
@@ -98,6 +98,7 @@ class TaskService:
     def create_task(self, data: TaskCreate) -> TaskView:
         now = self.clock.now()
         with session_scope(self.engine) as s:
+            self._check_refs(s, data.category_id, data.parts)
             row = TaskRow(
                 title=data.title,
                 raw_text=data.raw_text,
@@ -117,19 +118,31 @@ class TaskService:
             return self._view(s, row)
 
     def update_task(self, task_id: str, data: TaskPatch) -> TaskView:
-        now = self.clock.now()
-        with session_scope(self.engine) as s:
+        with _LOCK, session_scope(self.engine) as s:  # a concurrent start must not interleave
+            now = self.clock.now()
             row = self._row(s, task_id)
             sent = data.model_dump(exclude_unset=True, exclude={"parts"})
+            for key in ("title", "tentative"):
+                if key in sent and sent[key] is None:
+                    raise BadInput(f"{key} cannot be null")
+            if sent.get("estimate_min") is None:
+                sent.pop("estimate_min", None)  # can be set, not cleared
+            self._check_refs(s, sent.get("category_id"), data.parts or [])
+            if ("estimate_min" in sent or data.parts is not None) and row.status not in (
+                Status.DRAFT.value,
+                Status.READY.value,
+            ):
+                # the guess is what calibration compares against (SPEC 1.6): frozen at first start
+                raise InvalidTransition("estimate and parts can only change before the first start")
             for key, value in sent.items():
-                if key == "estimate_min" and value is None:
-                    continue  # can be set, not cleared
                 setattr(row, key, value)
             if row.status == Status.DRAFT.value and row.estimate_min:
                 row.status = Status.READY.value
+            fields = sorted(sent) + (["parts"] if data.parts is not None else [])
             if data.parts is not None:
                 self._set_parts(s, row.id, data.parts, replace=True)
-            self._event(s, row.id, "task_updated", now, {"fields": sorted(sent)})
+            if fields:
+                self._event(s, row.id, "task_updated", now, {"fields": fields})
             s.flush()
             return self._view(s, row)
 
@@ -149,8 +162,8 @@ class TaskService:
     def _run(
         self, task_id: str, cmd: str, at: datetime | None, stop_body: StopIn | None = None
     ) -> TaskView:
-        now = self.clock.now()
         with _LOCK, session_scope(self.engine) as s:  # lock covers check + write + commit (D6)
+            now = self.clock.now()  # sampled under the lock so queued commands keep their order
             row = self._row(s, task_id)
             old = self._to_machine(s, row)
             if cmd in ("start", "resume"):
@@ -224,6 +237,14 @@ class TaskService:
         row.status = new.status.value
         row.stopped_at = new.stopped_at
         row.started_at = new.sessions[0].start if new.sessions else None
+
+    @staticmethod
+    def _check_refs(s: Session, category_id: str | None, parts: list[PartIn]) -> None:
+        if category_id is not None and s.get(Category, category_id) is None:
+            raise BadInput(f"unknown category {category_id}")
+        for p in parts:
+            if s.get(PartType, p.part_type_id) is None:
+                raise BadInput(f"unknown part type {p.part_type_id}")
 
     @staticmethod
     def _check_parts(s: Session, task_id: str, body: StopIn) -> None:
