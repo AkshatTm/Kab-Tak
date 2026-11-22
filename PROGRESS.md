@@ -2,12 +2,12 @@
 
 ## Resume block
 <!-- /resume reads this. /done rewrites it. Keep it short. -->
-- **Current slice:** S1 — Data core (built, PR open, awaiting CI + your "merge")
-- **Status:** S0 merged (PR #1). S1 done on `slice/S1-data-core`: DB layer + migration with backup, timer state machine, task service, API routes, regenerated UI types.
-- **Last commit:** see `git log -1` on `slice/S1-data-core`
-- **Open PR:** https://github.com/AkshatTm/Kab-Tak/pull/2
-- **Next prompt:** after merge and `/clear`: "/resume" then "/slice S2" (tag S, Opus only if the eval < 90%); stop after writing plans/S2.md. Before S2: run `/impeccable teach` and put real keys in `.env`.
-- **Blockers / notes:** The harness forces a worktree for edits (CLAUDE.md says no worktrees); S1 was built in `.claude/worktrees/S1-plan`. Dev runs use a tmp `KABTAK_DB_URL`, never the real DB.
+- **Current slice:** S2 — Chat → task card (planned; `plans/S2.md` written on Sonnet, awaiting approval)
+- **Status:** S0 (PR #1) and S1 (PR #2) merged; S1 plan archived. S2 plan: backend T1–T6 first, UI after your checkpoints.
+- **Last commit:** see `git log -1` on `slice/S2-chat-card` (plan only)
+- **Open PR:** —
+- **Next prompt:** "Approved. Build S2 from plans/S2.md on branch slice/S2-chat-card, backend tasks first (T2, T3, T4 as parallel subagents). Stop before merge." Before the UI tasks and the live eval: run `/impeccable teach` (DESIGN_BRIEF.md) and put real keys in `.env`.
+- **Blockers / notes:** No `.impeccable.md` and no `.env` yet (your two checkpoints). The harness forces a worktree for edits (CLAUDE.md says no worktrees); work happens in `.claude/worktrees/S1-plan`. Dev runs use a tmp `KABTAK_DB_URL`. S4 must bundle `app/chat/prompts/parse_task.md`.
 
 ## Slice log
 | Slice | Model used | PR | Result / evidence | Notes |
