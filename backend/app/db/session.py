@@ -7,7 +7,7 @@ from sqlmodel import Session
 
 @contextmanager
 def session_scope(engine: Engine) -> Iterator[Session]:
-    with Session(engine) as session:
+    with Session(engine, expire_on_commit=False) as session:  # callers read rows after commit
         try:
             yield session
             session.commit()
