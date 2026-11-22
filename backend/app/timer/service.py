@@ -8,7 +8,7 @@ from typing import Any
 from sqlalchemy import Engine
 from sqlmodel import Session, col, select
 
-from app.db.models import Event, Setting, TaskPart
+from app.db.models import Category, Event, PartType, Setting, TaskPart
 from app.db.models import Session as SessionRow
 from app.db.models import Task as TaskRow
 from app.db.session import session_scope
@@ -33,6 +33,10 @@ class NotFound(Exception):
     pass
 
 
+class BadInput(ValueError):
+    pass
+
+
 class AlreadyRunning(Exception):
     def __init__(self, task_id: str) -> None:
         super().__init__(f"task {task_id} is already running")
@@ -50,7 +54,7 @@ def _aware_utc(dt: datetime | None) -> datetime | None:
     if dt is None:
         return None
     if dt.tzinfo is None:
-        raise ValueError("`at` must include a timezone")
+        raise BadInput("`at` must include a timezone")
     return dt.astimezone(UTC)
 
 
@@ -81,6 +85,14 @@ class TaskService:
                 if study_day(r.started_at or r.created_at, self.clock.tz, cutoff) == target
             ]
             return [self._view(s, r) for r in keep]
+
+    def categories(self) -> list[Category]:
+        with session_scope(self.engine) as s:
+            return list(s.exec(select(Category).order_by(col(Category.name))).all())
+
+    def part_types(self) -> list[PartType]:
+        with session_scope(self.engine) as s:
+            return list(s.exec(select(PartType).order_by(col(PartType.key))).all())
 
     # ---- writes ------------------------------------------------------------------------------
     def create_task(self, data: TaskCreate) -> TaskView:
@@ -218,7 +230,7 @@ class TaskService:
         for cp in body.completed_parts:
             part = s.get(TaskPart, cp.part_id)
             if part is None or part.task_id != task_id:
-                raise ValueError(f"unknown part {cp.part_id} for this task")
+                raise BadInput(f"unknown part {cp.part_id} for this task")
 
     @staticmethod
     def _set_parts(s: Session, task_id: str, parts: list[PartIn], replace: bool = False) -> None:
