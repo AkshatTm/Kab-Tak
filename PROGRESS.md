@@ -2,7 +2,7 @@
 
 ## Resume block
 <!-- /resume reads this. /done rewrites it. Keep it short. -->
-- **Current slice:** S0 — Scaffold + GitHub (built, PR open, awaiting CI + your "merge")
+- **Current slice:** S0 — Scaffold + GitHub (built, PR #1 CI green, awaiting your "merge")
 - **Status:** done on branch `slice/S0-scaffold`; next is S1 (Data core, tag S) once S0 merges
 - **Last commit:** see `git log -1` on `slice/S0-scaffold`
 - **Open PR:** https://github.com/AkshatTm/Kab-Tak/pull/1
@@ -16,5 +16,6 @@
 
 ## Decisions made during build
 <!-- Small decisions. Big ones get an ADR in docs/adr/. -->
+- Health version is the `app.__version__` constant (CI never installs the project). Lockfile must come from the CI npm (11.20); regenerate with `npx npm@11.20.0 install --package-lock-only`.
 - `python -m app.openapi [path]` writes LF bytes (path arg avoids PowerShell `>` re-encoding); CI diffs `openapi.json` and `schema.ts`.
 - Same linker failure happened twice (no MSVC Build Tools); stopped per rules, user installed them. Not a model escalation.
