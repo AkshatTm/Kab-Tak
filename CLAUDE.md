@@ -37,16 +37,22 @@ cargo tauri build                                    # installer (needs PyInstal
 6. SQLite with a Postgres-safe schema (ADR 0001). Schema changes only through Alembic.
 7. Don't read `plans/archive/` unless asked.
 
+## Plans
+- `plans/IMPLEMENTATION_PLAN.md` — whole-project plan: workflow, **settled decisions D1–D18**, per-slice scope/tests/risks. Don't re-open a D-decision; if one is wrong, say so and propose a SPEC change.
+- `plans/Sx.md` — the current slice's detailed plan, expanded from its section in IMPLEMENTATION_PLAN.md.
+
 ## Model policy
-Sonnet 5.5 does all work by default. Opus 5.5 only for slices tagged **O** in ROADMAP.md, or when Sonnet
-hits the same failure twice / can't settle a design decision. Record the model used per slice in PROGRESS.md.
+- **All coding is done by Sonnet 5.5.** Opus 5.5 only *plans*: slices tagged **O** in ROADMAP.md (S4, S7) get their `plans/Sx.md` written on Opus, then the user switches to `/model sonnet` to build.
+- Escalate to Opus only when Sonnet hits the same failure twice or can't settle a design decision: stop, tell the user, and log it in PROGRESS.md.
+- Record the model used per slice in PROGRESS.md.
 
 ## Session protocol
 - **Start:** `/resume` (read Resume block in PROGRESS.md, run tests, report state).
-- **Plan:** `/slice Sx` → plan mode → `plans/Sx.md` (tasks, files touched, tests, evidence). Wait for approval.
-- **Build:** TDD for all logic (failing test first). Subagent-driven execution for independent tasks to keep main context small.
-- **Verify:** evidence, not claims — test output, commands with results, Playwright screenshots for UI.
-- **Review:** separate review subagent for correctness, then `/ponytail-review` for bloat; UI slices also `/impeccable audit` then polish.
+- **Plan:** `/slice Sx` → `plans/Sx.md` (bite-sized tasks, exact files, tests first, evidence). Wait for approval.
+- **Build:** on branch `slice/Sx-name`. TDD for all logic (`superpowers:test-driven-development`). Independent tasks → `superpowers:subagent-driven-development`; small/coupled work inline.
+- **Debug:** `superpowers:systematic-debugging` before any fix.
+- **Verify:** `superpowers:verification-before-completion` — evidence, not claims: test output, commands with results, Playwright screenshots → `docs/screenshots/`.
+- **Review:** code-review subagent (`superpowers:requesting-code-review`) for correctness, then `/ponytail-review` for bloat; UI slices also `/impeccable audit` then `/impeccable polish`.
 - **End:** `/done`, then the user runs `/clear`.
 
 ## Git workflow
@@ -64,6 +70,12 @@ Edit SPEC.md + add a CHANGES.md entry. Never create new PRD/design docs. New big
 - **TypeScript:** strict mode, no `any`.
 - **Rust:** clippy clean.
 
-## Skills / plugins in use
-Superpowers (systematic-debugging etc.), Impeccable (design; context in `.impeccable.md`), Ponytail
-(`/ponytail-review`), Handoff, taste-skill, Anthropic `frontend-design`. Use them as the session protocol says.
+## Skills / plugins (and overrides)
+- **Superpowers:** as in the session protocol. Overrides: skip `brainstorming` (SPEC is done); `writing-plans` saves to `plans/Sx.md`; `finishing-a-development-branch` never merges (git workflow above); no worktrees.
+- **Impeccable** is the single design authority (`.impeccable.md`, from `/impeccable teach` + DESIGN_BRIEF.md). `frontend-design` only sets the direction in S2, inside Impeccable's context. `taste-skill` only for an optional landing page in S11.
+- **Ponytail** is always on: smallest complete change, `shortcut:` comments for known limits; `/ponytail-debt` + `/ponytail-audit` before S11.
+- No Handoff plugin: `/done` + PROGRESS.md is the handoff.
+
+## Data safety
+The user dogfoods from S3 on; dev uses the real `%APPDATA%\KabTak\data.db`. Tests always use a tmp DB.
+Never delete or reset that file; migrations back it up first (D2).
