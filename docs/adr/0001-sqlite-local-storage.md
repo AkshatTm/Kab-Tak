@@ -7,7 +7,7 @@ The app is a Windows desktop app that will be installed by other people. Postgre
 future growth, but it needs a separate server process on every user's machine and extra disk space.
 
 ## Decision
-- Use **SQLite** (WAL mode) in `%APPDATA%\TimeCalibrator\data.db`, accessed through SQLModel with Alembic migrations.
+- Use **SQLite** (WAL mode) in `%APPDATA%\KabTak\data.db` (override with the `KABTAK_DB_URL` env var; tests always use a tmp DB), accessed through SQLModel with Alembic migrations.
 - Keep the schema **Postgres-safe**: UUID text primary keys, UTC ISO-8601 timestamps, no SQLite-only types or functions in queries.
 
 ## Consequences
