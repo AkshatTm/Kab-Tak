@@ -85,6 +85,7 @@ Both thresholds live in settings. The UI shows per-category progress: "Learning 
 └───────────────────────────────────────────────────────────────────────┘
 ```
 - During development the UI runs in the browser (`vite dev`) against `uvicorn` directly.
+- Before every Alembic upgrade at startup, `data.db` is copied to `data.db.bak-<current-revision>`; a failed migration stops the app.
 - In release, the backend is bundled with PyInstaller as a Tauri **sidecar** binary.
 - The backend is the long-term "time data core". Later phases (Telegram bot, Rust daemon, agent/MCP)
   talk to the same API.
@@ -124,7 +125,7 @@ Both thresholds live in settings. The UI shows per-category progress: "Learning 
 4. Anything that creates or changes data is shown as a card and needs confirmation (except fast-path timer commands).
 
 ### 2.5 Timer state machine
-`draft → ready → running ⇄ paused → stopped`. Only one task can be `running` at a time; starting a second one
+`draft → ready → running ⇄ paused → stopped`. Stop is legal from `running` or `paused`. Only one task can be `running` at a time; starting a second one
 asks to pause or stop the first. Each running stretch is a `session` row. Active time = Σ sessions; wall time =
 stop − first start.
 
@@ -137,13 +138,13 @@ stop − first start.
 |---|---|
 | `categories` | id, name (unique), parent_id (nullable, for subcategories), created_at |
 | `part_types` | id, key (e.g. `video_watch`), unit (`content_min`, `problems`, `units`, `pages`, `items`), label |
-| `tasks` | id, title, raw_text, category_id, estimate_min, status, outcome (`done/partly/stuck/null`), tentative (bool), familiarity (`new/familiar/null`), source (`chat/retro/manual`), created_at, started_at, stopped_at, active_min, wall_min |
+| `tasks` | id, title, raw_text, category_id, estimate_min, status, outcome (`done/partly/stuck/null`), tentative (bool), familiarity (`new/familiar/null`), source (`chat/retro/manual`), created_at, started_at, stopped_at, active_min, wall_min (both float minutes) |
 | `task_parts` | id, task_id, part_type_id, planned_qty, completed_qty, order |
 | `sessions` | id, task_id, start_at, end_at (nullable while running), end_reason (`pause/stop/idle/recovered`) |
 | `predictions` | id, task_id, model_level (`A/B/C`), model_version, point_min, low_min, high_min, shown (bool), created_at |
 | `corrections` | id, raw_text, llm_output_json, corrected_json, created_at — used as few-shot examples |
 | `llm_calls` | id, provider, model, latency_ms, ok, error, prompt_tokens, completion_tokens, created_at |
-| `settings` | key, value_json |
+| `settings` | key, value_json. Keys so far: `day_starts_at` (`"04:00"`), `installed_at` (UTC ISO, written at first DB init) |
 | `events` | id, task_id (nullable), type, payload_json, created_at — append-only audit log |
 
 Seed part types: `video_watch (content_min)`, `read_theory (units|pages)`, `handwrite_code (problems)`,
@@ -183,8 +184,9 @@ Seed categories: `DSA`, `Theory subject`, `Assignment`, `Project coding`, `Admin
 | `POST /chat` | `{text}` → `{intent, card?, reply, task_id?}` |
 | `POST /tasks` | create from confirmed card |
 | `PATCH /tasks/{id}` | edit fields / parts |
-| `POST /tasks/{id}/start` · `/pause` · `/resume` | timer control |
-| `POST /tasks/{id}/stop` | `{outcome, completed_parts?}` |
+| `POST /tasks/{id}/start` · `/pause` · `/resume` | timer control. `start`/`resume` return 409 `{detail, running_task_id}` when another task is running. `pause` takes optional `{at}` |
+| `POST /tasks/{id}/stop` | `{outcome, completed_parts?, at?}` (legal from running or paused) |
+| `GET /categories` · `GET /part-types` | seeded lookup lists (ids needed to create tasks) |
 | `POST /tasks/retro` | retro log |
 | `GET /tasks?date=YYYY-MM-DD` | today/any day view |
 | `GET /tasks/running` | current running task (for recovery + mini timer) |

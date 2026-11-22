@@ -2,6 +2,11 @@
 
 One entry per change to SPEC.md: what changed and why. Newest first.
 
+## 2026-11-22 — S1 data core
+- SPEC §3.1: `active_min`/`wall_min` are float minutes; settings keys `day_starts_at`, `installed_at`.
+- SPEC §3.3: added `GET /categories`, `GET /part-types`; optional `at` on pause/stop; 409 body on start/resume; stop legal from paused.
+- SPEC §2.1: backup before upgrade, failed migration stops the app (D2).
+
 ## 2026-11-22 — S0 doc fixes
 - ADR 0001: data path is `%APPDATA%\KabTak\data.db` (was the old project name); added the `KABTAK_DB_URL` override (D1).
 - SPEC §3.3: auth header is `X-KabTak-Token`; CORS origins listed (D12).
