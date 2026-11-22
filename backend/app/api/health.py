@@ -17,5 +17,6 @@ class Health(BaseModel):
 
 @router.get("/api/health")
 def health(request: Request) -> Health:
+    # shortcut: package metadata is missing in a PyInstaller bundle, switch to a constant in S4
     ok = check(request.app.state.get_engine())
     return Health(status="ok", version=version("backend"), db="ok" if ok else "error")

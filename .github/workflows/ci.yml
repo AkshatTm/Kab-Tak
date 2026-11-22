@@ -29,6 +29,8 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: lts/*, cache: npm, cache-dependency-path: ui/package-lock.json }
       - run: npm ci
+      - run: npm run gen:api
+      - run: git diff --exit-code -- src/api/schema.ts
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test

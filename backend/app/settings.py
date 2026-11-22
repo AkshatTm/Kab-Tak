@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     token: str = ""  # empty token rejects every request
     db_url: str = ""
-    port: int = 8765
+    port: int = 8765  # shortcut: unused until the S4 sidecar launcher reads it
 
     def resolved_db_url(self) -> str:
         return self.db_url or default_db_url()
