@@ -1,8 +1,13 @@
 import json
 import sys
+from pathlib import Path
 
 from app.main import create_app
 
 if __name__ == "__main__":
-    sys.stdout.reconfigure(newline="\n")  # type: ignore[union-attr]  # same bytes on Windows and Linux
-    print(json.dumps(create_app().openapi(), indent=2, sort_keys=True))
+    text = json.dumps(create_app().openapi(), indent=2, sort_keys=True) + "\n"
+    # Write bytes: same LF output on Windows and Linux (CI diffs this file).
+    if len(sys.argv) > 1:
+        Path(sys.argv[1]).write_bytes(text.encode())
+    else:
+        sys.stdout.buffer.write(text.encode())

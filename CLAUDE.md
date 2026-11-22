@@ -16,14 +16,15 @@ plans/        current slice plan (plans/Sx.md); plans/archive/ = finished plans
 docs/adr/     accepted architecture decisions
 ```
 
-## Commands (PowerShell, run from repo root; finalised in S0)
+## Commands (PowerShell, run from repo root; verified in S0)
 ```powershell
-cd backend; uv run uvicorn app.main:app --reload     # backend
+cd backend; uv run uvicorn app.main:app --reload --port 8765   # backend (needs KABTAK_TOKEN, see .env.example)
 cd ui; npm run dev                                   # UI
-cargo tauri dev                                      # desktop dev
+cargo tauri dev                                      # desktop dev (run the backend first; needs Rust + VS Build Tools C++)
 cd backend; uv run pytest; cd ../ui; npm test        # all tests
 cd backend; uv run ruff check .; uv run mypy .       # lint (py)
-cd ui; npx tsc --noEmit; npx eslint .                # lint (ts)
+cd ui; npm run typecheck; npm run lint               # lint (ts)
+cd backend; uv run python -m app.openapi ../ui/src/api/openapi.json; cd ../ui; npm run gen:api   # regen API types (D11)
 cd src-tauri; cargo clippy -- -D warnings            # lint (rust)
 cargo tauri build                                    # installer (needs PyInstaller sidecar, see S4)
 ```

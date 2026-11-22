@@ -16,8 +16,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv sync
-      - run: uv run python -m app.openapi > ../ui/src/api/openapi.json
-        shell: bash
+      - run: uv run python -m app.openapi ../ui/src/api/openapi.json
       - run: git diff --exit-code -- ../ui/src/api/openapi.json
       - run: uv run ruff check .
       - run: uv run mypy .
