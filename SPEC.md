@@ -195,7 +195,7 @@ Seed categories: `DSA`, `Theory subject`, `Assignment`, `Project coding`, `Admin
 | `GET /export?format=json|csv` | full export |
 | `GET/PUT /settings` | thresholds, API keys status (never return keys), categories |
 
-Auth: the Tauri shell passes a random per-launch token; the backend rejects requests without it and binds to 127.0.0.1 only.
+Auth: the Tauri shell passes a random per-launch token; the backend rejects requests without it and binds to 127.0.0.1 only. The token travels in the `X-KabTak-Token` header on every `/api/*` request. CORS allows only `http://localhost:5173` (dev) and `http://tauri.localhost` (release).
 
 ### 3.4 Calibration model
 Notation: `E` = user estimate (min), `A` = actual active minutes, `r = ln(A / E)`.
