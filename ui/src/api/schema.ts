@@ -21,6 +21,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/chat": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Chat */
+        post: operations["chat_api_chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Correction */
+        post: operations["add_correction_api_corrections_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -189,6 +223,26 @@ export interface components {
             /** Parent Id */
             parent_id: string | null;
         };
+        /** ChatIn */
+        ChatIn: {
+            /** Text */
+            text: string;
+        };
+        /** ChatResponse */
+        ChatResponse: {
+            /** Cards */
+            cards: components["schemas"]["TaskCreate"][];
+            /** Intent */
+            intent: string;
+            /** Parse Json */
+            parse_json: {
+                [key: string]: unknown;
+            } | null;
+            /** Parsed */
+            parsed: boolean;
+            /** Reply */
+            reply: string;
+        };
         /** CompletedPart */
         CompletedPart: {
             /** Completed Qty */
@@ -202,6 +256,21 @@ export interface components {
             detail: string;
             /** Running Task Id */
             running_task_id?: string | null;
+        };
+        /** CorrectionIn */
+        CorrectionIn: {
+            corrected_json: components["schemas"]["TaskCreate"];
+            /** Llm Output Json */
+            llm_output_json?: {
+                [key: string]: unknown;
+            } | null;
+            /** Raw Text */
+            raw_text: string;
+        };
+        /** CorrectionOut */
+        CorrectionOut: {
+            /** Id */
+            id: string;
         };
         /** ErrorOut */
         ErrorOut: {
@@ -406,6 +475,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CategoryOut"][];
+                };
+            };
+        };
+    };
+    chat_api_chat_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChatIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_correction_api_corrections_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorrectionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

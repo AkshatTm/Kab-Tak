@@ -3,6 +3,7 @@
 import json
 import re
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from importlib.resources import files
 from typing import Any, Protocol, TypeVar
 
@@ -49,6 +50,19 @@ class ChatService:
     def __init__(self, engine: Engine, completer: Completer) -> None:
         self.engine = engine
         self.completer = completer
+
+    def add_correction(
+        self, raw_text: str, llm_output: dict[str, Any] | None, corrected: TaskCreate
+    ) -> str:
+        row = Correction(
+            raw_text=raw_text,
+            llm_output_json=llm_output or {},
+            corrected_json=corrected.model_dump(),
+            created_at=datetime.now(UTC),
+        )
+        with session_scope(self.engine) as s:
+            s.add(row)
+        return row.id
 
     def parse(self, text: str) -> ChatResponse:
         with session_scope(self.engine) as s:
@@ -114,10 +128,13 @@ def _system_prompt(
     )
     if not corrections:
         return prompt
+    category_names = {c.id: c.name for c in categories}
+    part_keys = {p.id: p.key for p in part_types}
     # In the system prompt, not as assistant turns: a corrected card is not the output schema.
     examples = "\n\n".join(
         f"Input: {json.dumps(c.raw_text, ensure_ascii=False)}\n"
-        f"Corrected: {json.dumps(c.corrected_json, ensure_ascii=False)}"
+        f"Corrected: "
+        f"{json.dumps(_named(c.corrected_json, category_names, part_keys), ensure_ascii=False)}"
         for c in corrections
     )
     return (
@@ -125,6 +142,24 @@ def _system_prompt(
         "Learn the preferred values from these. Always answer in the output schema above.\n\n"
         f"{examples}\n"
     )
+
+
+def _named(
+    card: dict[str, Any], category_names: dict[str, str], part_keys: dict[str, str]
+) -> dict[str, Any]:
+    """A stored card in the output schema's terms: names, not database ids."""
+    parts = [
+        {"type": part_keys.get(p.get("part_type_id"), "other"), "quantity": p.get("planned_qty")}
+        for p in card.get("parts") or []
+    ]
+    return {
+        "title": card.get("title"),
+        "category": category_names.get(card.get("category_id") or ""),
+        "estimate_min": card.get("estimate_min"),
+        "familiarity": card.get("familiarity"),
+        "tentative": card.get("tentative", False),
+        "parts": parts,
+    }
 
 
 def _card(

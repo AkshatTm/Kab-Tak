@@ -1,4 +1,3 @@
-import json
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any, TypeVar
@@ -272,11 +271,9 @@ def test_few_shot_is_the_latest_ten_corrections_newest_first(engine: Engine) -> 
     completer = FakeCompleter(ParseResult(intent="unknown"))
     ChatService(engine, completer).parse("hello")
     prompt = completer.messages[0]["content"]
-    expected = [
-        f"Input: {json.dumps(f'raw-{i:02}')}\nCorrected: " + json.dumps({"title": f"fixed-{i:02}"})
-        for i in range(11, 1, -1)
-    ]
-    assert "\n\n".join(expected) in prompt
+    positions = [prompt.index(f'Input: "raw-{i:02}"') for i in range(11, 1, -1)]
+    assert positions == sorted(positions)  # newest first
+    assert all(f'"title": "fixed-{i:02}"' in prompt for i in range(2, 12))
     assert "raw-01" not in prompt and "raw-00" not in prompt and "wrong" not in prompt
 
 
