@@ -24,21 +24,18 @@ _EXAMPLE_MAX = 500
 _PARTS_MAX = 10
 _FAILED = "Couldn't understand that — fill the card manually"
 
-# shortcut: ADR 0004 heuristic (any digit, number word or time word lets the LLM's estimate
-# through, even "2 problems"); tighten or extend if the eval shows invented or false-null values.
-# Hinglish numbers (ek, do, teen) are left out on purpose: they only mean a duration next to a
-# time word, which already matches, and "do" is also an English verb.
-_HAS_TIME_HINT = re.compile(
-    r"\d|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty"
-    r"|thirty|forty|fifty|sixty|ninety|half|quarter|couple"
-    r"|minutes?|mins?|minat|hours?|hrs?|ghant(?:a|e|ay|o|on))\b|घंट|मिनट",
-    re.IGNORECASE,
-)
-
-
-# free text from the LLM is dropped only if it names a time unit (a duration needs one)
+# a duration needs a time unit; this alone filters free text from the LLM ("Which one?" is fine)
 _TIME_UNIT = re.compile(
     r"\b(?:minutes?|mins?|minat|hours?|hrs?|ghant(?:a|e|ay|o|on))\b|\d\s*[mh]\b|घंट|मिनट",
+    re.IGNORECASE,
+)
+# shortcut: ADR 0004 heuristic (any digit, number word or time unit lets the LLM's estimate
+# through, even "2 problems"); tighten or extend if the eval shows invented or false-null values.
+# Hinglish numbers (ek, do, teen) are left out on purpose: they only mean a duration next to a
+# time unit, which already matches, and "do" is also an English verb.
+_HAS_TIME_HINT = re.compile(
+    _TIME_UNIT.pattern + r"|\d|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven"
+    r"|twelve|fifteen|twenty|thirty|forty|fifty|sixty|ninety|half|quarter|couple)\b",
     re.IGNORECASE,
 )
 
