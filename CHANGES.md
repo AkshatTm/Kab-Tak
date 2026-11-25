@@ -2,6 +2,10 @@
 
 One entry per change to SPEC.md: what changed and why. Newest first.
 
+## 2026-11-25 — S2 chat contract
+- SPEC §3.3: `/chat` returns `cards[]` (task bodies) with `parsed` and `parse_json`; added `POST /corrections`.
+- SPEC §2.4/§3.2: intents handled in S2; ADR 0004 code guard on `estimate_min`.
+
 ## 2026-11-22 — S1 data core
 - SPEC §3.1: `active_min`/`wall_min` are float minutes; settings keys `day_starts_at`, `installed_at`.
 - SPEC §3.3: added `GET /categories`, `GET /part-types`; optional `at` on pause/stop; 409 body on start/resume; stop legal from paused.
