@@ -10,6 +10,7 @@ from sqlalchemy import Engine
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, select
 
+from app.chat.schema import ParseResult
 from app.db.engine import make_engine
 from app.db.models import LlmCall
 from app.llm.chain import LlmChain
@@ -338,3 +339,33 @@ def test_keys_never_appear_in_repr(engine: Engine) -> None:
         ]
     )
     assert not any(key in shown for key in KEYS.values())
+
+
+@pytest.mark.parametrize("choices", [{}, {"a": 1}])
+def test_odd_choices_shape_falls_through_to_the_next_provider(
+    migrated_url: str, choices: dict[str, int]
+) -> None:
+    engine = make_engine(migrated_url)
+    reply = {"role": "assistant", "content": '{"intent": "unknown"}'}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if "groq" in str(request.url):
+            return httpx.Response(200, json={"choices": choices})
+        return httpx.Response(
+            200,
+            json={
+                "id": "1",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "m",
+                "choices": [{"index": 0, "finish_reason": "stop", "message": reply}],
+            },
+        )
+
+    keys = ProviderKeys(_env_file=None, groq_api_key="a", cerebras_api_key="b", gemini_api_key="")
+    chain = LlmChain(
+        load_config(), keys, engine, httpx.Client(transport=httpx.MockTransport(handler))
+    )
+    result = chain.complete_json([{"role": "user", "content": "x"}], ParseResult)
+    assert result is not None and result.intent == "unknown"
+    engine.dispose()

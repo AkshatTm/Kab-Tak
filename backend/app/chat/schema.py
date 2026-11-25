@@ -4,6 +4,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
+from app.timer.inputs import MAX_ESTIMATE_MIN, MAX_QTY
+
 Intent = Literal[
     "create_task",
     "update_task",
@@ -27,14 +29,14 @@ class _LlmModel(BaseModel):
 
 class ParsedPart(_LlmModel):
     type: str
-    quantity: float = Field(gt=0)
+    quantity: float = Field(gt=0, le=MAX_QTY, allow_inf_nan=False)
     unit: str | None = None
 
 
 class ParsedTask(_LlmModel):
     title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
     category: str | None = None
-    estimate_min: int | None = Field(default=None, gt=0)
+    estimate_min: int | None = Field(default=None, gt=0, le=MAX_ESTIMATE_MIN)
     familiarity: Literal["new", "familiar"] | None = None
     tentative: bool = False
     parts: list[ParsedPart] = []

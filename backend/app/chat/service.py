@@ -20,6 +20,8 @@ T = TypeVar("T", bound=BaseModel)
 
 _FEW_SHOT = 10
 _TITLE_MAX = 120
+_EXAMPLE_MAX = 500
+_PARTS_MAX = 10
 _FAILED = "Couldn't understand that — fill the card manually"
 
 # shortcut: ADR 0004 heuristic (any digit, number word or time word lets the LLM's estimate
@@ -29,7 +31,14 @@ _FAILED = "Couldn't understand that — fill the card manually"
 _HAS_TIME_HINT = re.compile(
     r"\d|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|fifteen|twenty"
     r"|thirty|forty|fifty|sixty|ninety|half|quarter|couple"
-    r"|minutes?|mins?|minat|hours?|hrs?|ghant[ae]|ghanton)\b",
+    r"|minutes?|mins?|minat|hours?|hrs?|ghant(?:a|e|ay|o|on))\b|घंट|मिनट",
+    re.IGNORECASE,
+)
+
+
+# free text from the LLM is dropped only if it names a time unit (a duration needs one)
+_TIME_UNIT = re.compile(
+    r"\b(?:minutes?|mins?|minat|hours?|hrs?|ghant(?:a|e|ay|o|on))\b|\d\s*[mh]\b|घंट|मिनट",
     re.IGNORECASE,
 )
 
@@ -86,17 +95,21 @@ class ChatService:
                 task.estimate_min = None
 
         intent: str = result.intent
-        if intent == "create_task" and result.task is None:
+        if intent == "create_task" and not tasks:
             intent = "unknown"
 
         cards: list[TaskCreate] = []
+        # ADR 0004: free text from the LLM must not carry a duration to the user
+        question = result.clarifying_question
+        if question and _TIME_UNIT.search(question):
+            question = None
         if intent == "create_task":
             category_ids = {c.name.casefold(): c.id for c in categories}
             part_ids = {p.key.casefold(): p.id for p in part_types}
             cards = [_card(t, text, category_ids, part_ids) for t in tasks]
-            reply = result.clarifying_question or "Check the card, then confirm."
+            reply = question or "Check the card, then confirm."
         elif intent in ("question", "unknown"):
-            reply = result.clarifying_question or "Tell me the task you want to work on."
+            reply = question or "Tell me the task you want to work on."
         else:
             reply = "That isn't available yet."
 
@@ -132,7 +145,7 @@ def _system_prompt(
     part_keys = {p.id: p.key for p in part_types}
     # In the system prompt, not as assistant turns: a corrected card is not the output schema.
     examples = "\n\n".join(
-        f"Input: {json.dumps(c.raw_text, ensure_ascii=False)}\n"
+        f"Input: {json.dumps(c.raw_text[:_EXAMPLE_MAX], ensure_ascii=False)}\n"
         f"Corrected: "
         f"{json.dumps(_named(c.corrected_json, category_names, part_keys), ensure_ascii=False)}"
         for c in corrections
@@ -150,10 +163,10 @@ def _named(
     """A stored card in the output schema's terms: names, not database ids."""
     parts = [
         {"type": part_keys.get(p.get("part_type_id"), "other"), "quantity": p.get("planned_qty")}
-        for p in card.get("parts") or []
+        for p in (card.get("parts") or [])[:_PARTS_MAX]
     ]
     return {
-        "title": card.get("title"),
+        "title": str(card.get("title") or "")[:_TITLE_MAX],
         "category": category_names.get(card.get("category_id") or ""),
         "estimate_min": card.get("estimate_min"),
         "familiarity": card.get("familiarity"),

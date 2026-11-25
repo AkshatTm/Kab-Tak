@@ -93,6 +93,7 @@
       "CompletedPart": {
         "properties": {
           "completed_qty": {
+            "maximum": 100000.0,
             "minimum": 0.0,
             "title": "Completed Qty",
             "type": "number"
@@ -239,6 +240,7 @@
           },
           "planned_qty": {
             "exclusiveMinimum": 0.0,
+            "maximum": 100000.0,
             "title": "Planned Qty",
             "type": "number"
           }
@@ -391,6 +393,7 @@
             "anyOf": [
               {
                 "exclusiveMinimum": 0.0,
+                "maximum": 10000.0,
                 "type": "integer"
               },
               {
@@ -648,6 +651,7 @@
             "anyOf": [
               {
                 "exclusiveMinimum": 0.0,
+                "maximum": 10000.0,
                 "type": "integer"
               },
               {

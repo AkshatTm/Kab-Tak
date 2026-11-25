@@ -91,3 +91,18 @@ def test_score_failed_parse_counts_everything_wrong() -> None:
     assert sum(report.correct.values()) == 0
     assert sum(report.total.values()) == 14
     assert report.overall == 0.0
+
+
+def test_gate_fails_when_one_field_is_bad_even_if_overall_passes() -> None:
+    cases: list[tuple[GoldLine, dict[str, Any] | None]] = []
+    for g in load_gold():
+        d = g.model_dump(mode="json")
+        tasks = [{**t, "estimate_min": None} for t in d["tasks"]]
+        predicted = {
+            "intent": d["intent"],
+            "task": tasks[0] if tasks else None,
+            "extra_tasks": tasks[1:],
+        }
+        cases.append((g, predicted))
+    report = score(cases)
+    assert report.overall >= 0.90 and not report.passes()

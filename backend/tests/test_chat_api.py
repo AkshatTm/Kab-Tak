@@ -128,3 +128,8 @@ def test_api_key_never_reaches_response_or_db(db_url: str) -> None:
         rows = s.exec(select(LlmCall)).all()
         assert rows and all(secret not in (row.error or "") for row in rows)
     engine.dispose()
+
+
+def test_absurd_numbers_are_422_not_500(client: TestClient) -> None:
+    huge = {"title": "x", "estimate_min": 10**26}
+    assert client.post("/api/tasks", json=huge).status_code == 422

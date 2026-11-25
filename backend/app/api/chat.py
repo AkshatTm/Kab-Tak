@@ -8,6 +8,7 @@ from app.timer.inputs import TaskCreate
 
 router = APIRouter(prefix="/api")
 
+
 Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
 
 

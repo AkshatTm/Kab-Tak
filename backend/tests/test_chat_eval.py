@@ -59,6 +59,12 @@ class Report:
         if not ok:
             self.mismatches.append(f"{text!r} [{name}] want {want!r}, got {got!r}")
 
+    def passes(self) -> bool:
+        # per field too: nulls everywhere else can hide a field that is always wrong
+        return self.overall >= THRESHOLD and all(
+            self.correct[n] >= THRESHOLD * self.total[n] for n in FIELDS
+        )
+
     def table(self) -> str:
         rows = [(n, self.correct[n], self.total[n]) for n in FIELDS]
         rows.append(("overall", sum(self.correct.values()), sum(self.total.values())))
@@ -122,4 +128,4 @@ def test_live_chat_eval(migrated_url: str) -> None:
     report = score(cases)
     print("\n" + report.table())
     print("\n".join(["", f"{len(report.mismatches)} mismatches:", *report.mismatches]))
-    assert report.overall >= THRESHOLD, f"overall {report.overall:.1%} < {THRESHOLD:.0%}"
+    assert report.passes(), f"a field or the overall figure is under {THRESHOLD:.0%}"

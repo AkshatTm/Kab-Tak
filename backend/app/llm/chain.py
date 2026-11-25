@@ -70,7 +70,12 @@ class LlmChain:
 
                 try:
                     reply = completion.choices[0].message.content or ""
-                except (AttributeError, IndexError, TypeError):  # SDK does not validate replies
+                except (
+                    AttributeError,
+                    IndexError,
+                    KeyError,
+                    TypeError,
+                ):  # SDK does not validate replies
                     reply = ""
                 try:
                     result = schema.model_validate_json(reply)

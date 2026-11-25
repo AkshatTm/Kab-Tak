@@ -281,3 +281,61 @@ def test_no_few_shot_block_without_corrections(engine: Engine) -> None:
     completer = FakeCompleter(ParseResult(intent="unknown"))
     ChatService(engine, completer).parse("hello")
     assert "Corrected:" not in completer.messages[0]["content"]
+
+
+@pytest.mark.parametrize(
+    "text", ["do ghanto lagenge", "kaam ek ghantay ka", "एक घंटा लगेगा", "२० मिनट"]
+)
+def test_guard_keeps_estimates_for_more_time_words(engine: Engine, text: str) -> None:
+    result = ParseResult(intent="create_task", task=ParsedTask(title="t", estimate_min=60))
+    response = ChatService(engine, FakeCompleter(result)).parse(text)
+    assert response.cards[0].estimate_min == 60
+
+
+@pytest.mark.parametrize("intent", ["question", "unknown", "create_task"])
+def test_llm_written_durations_never_reach_the_reply(engine: Engine, intent: str) -> None:
+    result = ParseResult.model_validate(
+        {
+            "intent": intent,
+            "task": {"title": "t"} if intent == "create_task" else None,
+            "clarifying_question": "That usually takes about 45 minutes.",
+        }
+    )
+    response = ChatService(engine, FakeCompleter(result)).parse("something")
+    assert "45" not in response.reply and response.reply
+
+
+def test_extra_tasks_alone_still_become_cards(engine: Engine) -> None:
+    result = ParseResult(intent="create_task", extra_tasks=[ParsedTask(title="only extra")])
+    response = ChatService(engine, FakeCompleter(result)).parse("x 5 min")
+    assert response.intent == "create_task"
+    assert [c.title for c in response.cards] == ["only extra"]
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"title": "t", "estimate_min": 10**26},
+        {"title": "t", "parts": [{"type": "other", "quantity": float("inf")}]},
+        {"title": "t", "parts": [{"type": "other", "quantity": 1e12}]},
+    ],
+)
+def test_absurd_llm_numbers_are_rejected_by_the_schema(bad: dict[str, object]) -> None:
+    with pytest.raises(ValueError):  # pydantic ValidationError
+        ParseResult.model_validate({"intent": "create_task", "task": bad})
+
+
+def test_huge_stored_correction_does_not_bloat_the_prompt(engine: Engine) -> None:
+    card = {"title": "x" * 100_000, "parts": [{"part_type_id": "p", "planned_qty": 1}] * 500}
+    with session_scope(engine) as s:
+        s.add(
+            Correction(
+                raw_text="y" * 100_000,
+                llm_output_json={},
+                corrected_json=card,
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
+            )
+        )
+    completer = FakeCompleter(ParseResult(intent="unknown"))
+    ChatService(engine, completer).parse("hello")
+    assert len(completer.messages[0]["content"]) < 15_000
