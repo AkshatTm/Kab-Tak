@@ -2,7 +2,8 @@
 
 from typing import Any
 
-from tests.test_chat_eval import FIELDS, GoldLine, load_gold, score
+from app.chat.durations import stated_estimate
+from tests.test_chat_eval import FIELDS, GoldLine, load_gold, provider_table, score
 
 CATEGORIES = {"DSA", "Theory subject", "Assignment", "Project coding", "Admin"}
 PART_TYPES = {
@@ -97,7 +98,7 @@ def test_gate_fails_when_one_field_is_bad_even_if_overall_passes() -> None:
     cases: list[tuple[GoldLine, dict[str, Any] | None]] = []
     for g in load_gold():
         d = g.model_dump(mode="json")
-        tasks = [{**t, "estimate_min": None} for t in d["tasks"]]
+        tasks = [{**t, "familiarity": None} for t in d["tasks"]]
         predicted = {
             "intent": d["intent"],
             "task": tasks[0] if tasks else None,
@@ -106,3 +107,38 @@ def test_gate_fails_when_one_field_is_bad_even_if_overall_passes() -> None:
         cases.append((g, predicted))
     report = score(cases)
     assert report.overall >= 0.90 and not report.passes()
+
+
+SPEC_SENTENCE = (
+    "Video 2, 30 min left on backtracking. Then handwrite both problem codes, then implement "
+    "them on laptop. I think 1.5 hours."
+)
+
+
+def test_fixture_covers_the_review_cases() -> None:
+    gold = load_gold()
+    tasks = [t for line in gold for t in line.tasks]
+    assert SPEC_SENTENCE in {line.text for line in gold}
+    both = [t for t in tasks if t.estimate_min and any(p.type == "video_watch" for p in t.parts)]
+    assert len(both) >= 7  # video length and the user's own estimate in one sentence
+    assert sum(t.familiarity is None for t in tasks) < 0.9 * len(tasks)  # null must not pass
+    assert {t.familiarity for t in tasks} == {None, "new", "familiar"}
+
+
+def test_every_gold_estimate_survives_the_code_guard() -> None:
+    """A gold label the guard would null could never score: the label or the guard is wrong."""
+    for line in load_gold():
+        videos = [p.quantity for t in line.tasks for p in t.parts if p.type == "video_watch"]
+        for task in line.tasks:
+            kept = stated_estimate(task.estimate_min, line.text, videos)
+            assert kept == task.estimate_min, line.text
+
+
+def test_provider_table_shows_every_provider() -> None:
+    calls = [("groq", True), ("groq", False), ("groq", True), ("cerebras", False)]
+    table = provider_table(calls, ["groq", "cerebras", "gemini"])
+    assert [line.split() for line in table.splitlines()[1:]] == [
+        ["groq", "2", "1"],
+        ["cerebras", "0", "1"],
+        ["gemini", "0", "0"],
+    ]

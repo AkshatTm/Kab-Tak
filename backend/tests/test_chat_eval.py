@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 import pytest
 from pydantic import BaseModel, ConfigDict, PositiveFloat, PositiveInt
+from sqlmodel import select
 
 pytestmark = pytest.mark.live
 
@@ -104,15 +105,27 @@ def score(cases: list[tuple[GoldLine, dict[str, Any] | None]]) -> Report:
     return report
 
 
+def provider_table(calls: list[tuple[str, bool]], providers: list[str]) -> str:
+    """llm_calls per configured provider, so one that always fails cannot hide behind another."""
+    rows = [f"{'provider':<10} {'ok':>4} {'failed':>7}"]
+    for name in providers:
+        results = [ok for provider, ok in calls if provider == name]
+        rows.append(f"{name:<10} {sum(results):>4} {len(results) - sum(results):>7}")
+    return "\n".join(rows)
+
+
 def test_live_chat_eval(migrated_url: str) -> None:
     # Imported here so the fixture/scorer tests run without the LLM stack.
     from app.chat.service import ChatService
     from app.db.engine import make_engine
+    from app.db.models import LlmCall
+    from app.db.session import session_scope
     from app.llm.chain import LlmChain
     from app.llm.config import ProviderKeys, load_config
 
     engine = make_engine(migrated_url)
-    chain = LlmChain(load_config(), ProviderKeys(), engine)
+    config = load_config()
+    chain = LlmChain(config, ProviderKeys(), engine)
     if not chain.has_any_key():
         pytest.skip("no LLM key: set GROQ_API_KEY, CEREBRAS_API_KEY or GEMINI_API_KEY in .env")
     service = ChatService(engine, chain)
@@ -127,5 +140,8 @@ def test_live_chat_eval(migrated_url: str) -> None:
 
     report = score(cases)
     print("\n" + report.table())
+    with session_scope(engine) as s:
+        calls = [(c.provider, c.ok) for c in s.exec(select(LlmCall))]
+    print("\n" + provider_table(calls, [p.name for p in config.providers]))
     print("\n".join(["", f"{len(report.mismatches)} mismatches:", *report.mismatches]))
     assert report.passes(), f"a field or the overall figure is under {THRESHOLD:.0%}"
