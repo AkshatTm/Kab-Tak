@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent, type WheelEvent } from 'react'
 import { createTask, postCorrection, type Category, type PartType } from '../api/client'
 import { blocker, formatMinutes, fromCard, isEdited, toTaskCreate, type Card } from '../card/cardState'
 
@@ -11,6 +11,9 @@ type Props = {
   onSaved: (message: string) => void
 }
 
+// a focused number box steps its value on mouse wheel: scrolling must not rewrite a number
+const letGo = (e: WheelEvent<HTMLInputElement>) => e.currentTarget.blur()
+
 export default function TaskCard(props: Props) {
   const { card, parseJson, categories, partTypes, autoFocus = true, onSaved } = props
   const [draft, setDraft] = useState(() => fromCard(card))
@@ -20,6 +23,8 @@ export default function TaskCard(props: Props) {
   const busy = useRef(false)
   const reported = useRef(false)
   const reasonId = useId()
+  const guessBox = useRef<HTMLInputElement>(null)
+  const addPart = useRef<HTMLButtonElement>(null)
 
   const change = (patch: Partial<Card>) => setDraft((d) => ({ ...d, ...patch }))
   const changePart = (index: number, patch: Partial<Card['parts'][number]>) =>
@@ -65,6 +70,11 @@ export default function TaskCard(props: Props) {
     reported.current = true
     onSaved(savedMessage)
   }, [phase, savedMessage, onSaved])
+
+  // saving disabled the fields and dropped focus: give it back so Enter can retry
+  useEffect(() => {
+    if (problem && document.activeElement === document.body) guessBox.current?.focus()
+  }, [problem])
 
   if (phase === 'saved') {
     return (
@@ -128,7 +138,7 @@ export default function TaskCard(props: Props) {
               className="grid grid-cols-[minmax(0,15rem)_4.5rem_4.5rem_auto] items-center gap-2 text-sm"
             >
               <select
-                aria-label="Part type"
+                aria-label={`Part type ${i + 1}`}
                 className="field py-1"
                 value={part.part_type_id}
                 onChange={(e) => changePart(i, { part_type_id: e.target.value })}
@@ -141,6 +151,7 @@ export default function TaskCard(props: Props) {
               </select>
               <input
                 type="number"
+                onWheel={letGo}
                 min="0"
                 step="any"
                 aria-label={`Quantity of ${label}`}
@@ -156,7 +167,10 @@ export default function TaskCard(props: Props) {
                 aria-label={`Remove ${label}`}
                 title="Remove"
                 className="btn justify-self-start p-1.5"
-                onClick={() => change({ parts: draft.parts.filter((_, j) => j !== i) })}
+                onClick={() => {
+                  addPart.current?.focus() // this button is about to disappear
+                  change({ parts: draft.parts.filter((_, j) => j !== i) })
+                }}
               >
                 <svg aria-hidden viewBox="0 0 16 16" className="size-4" stroke="currentColor">
                   <path d="M4 4l8 8M12 4l-8 8" strokeWidth="1.5" strokeLinecap="round" />
@@ -166,6 +180,7 @@ export default function TaskCard(props: Props) {
           )
         })}
         <button
+          ref={addPart}
           type="button"
           className="btn justify-self-start py-1 text-sm"
           onClick={() => {
@@ -181,7 +196,9 @@ export default function TaskCard(props: Props) {
         <label className="grid gap-1 text-sm text-dim">
           Your guess (minutes)
           <input
+            ref={guessBox}
             type="number"
+            onWheel={letGo}
             inputMode="numeric"
             min="1"
             autoFocus={autoFocus}

@@ -125,3 +125,30 @@ it('cannot be edited while it is being saved', async () => {
   expect(screen.getByLabelText(/title/i)).toBeDisabled()
   await screen.findByText(/^Saved/)
 })
+
+// a focused number box changes its value on mouse wheel: scrolling must not rewrite a guess
+it.each([/your guess/i, /quantity/i])('lets go of %s when the wheel turns over it', (label) => {
+  fakeBackend()
+  show(30)
+  const box = screen.getByLabelText(label)
+  box.focus()
+  fireEvent.wheel(box)
+  expect(box).not.toHaveFocus()
+})
+
+it('keeps keyboard focus in the card when a part is removed', () => {
+  fakeBackend()
+  show(30)
+  fireEvent.click(screen.getByRole('button', { name: /remove practice problems/i }))
+  expect(screen.getByRole('button', { name: /add part/i })).toHaveFocus()
+})
+
+it('returns focus to the guess when saving fails', async () => {
+  fakeBackend({ 'POST /api/tasks': () => new Response('x', { status: 500 }) })
+  show(30)
+  // a real browser drops focus from a control that gets disabled; jsdom keeps it, so drop it first
+  guess().blur()
+  enter()
+  await screen.findByRole('alert')
+  expect(guess()).toHaveFocus()
+})

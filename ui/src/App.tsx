@@ -8,7 +8,7 @@ export default function App() {
   if (isPending) status = 'Connecting…'
   if (isError) status = 'Backend unreachable'
   return (
-    <main className="flex h-dvh flex-col">
+    <div className="flex h-dvh flex-col">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-2">
         <h1 className="text-lg font-semibold">Kab Tak</h1>
         {/* the words carry the state; the dot's shape (filled or ring) only repeats it */}
@@ -23,7 +23,9 @@ export default function App() {
           {status}
         </p>
       </header>
-      <ChatScreen />
-    </main>
+      <main className="flex min-h-0 flex-1 flex-col">
+        <ChatScreen />
+      </main>
+    </div>
   )
 }
