@@ -4,6 +4,7 @@ deadline_s = 12
 
 [[providers]]
 # verified 2026-11-25: https://console.groq.com/docs/models, /docs/openai
+# json_object confirmed by a live call 2026-11-27 (200, valid JSON).
 name = "groq"
 base_url = "https://api.groq.com/openai/v1"
 model = "openai/gpt-oss-20b"
@@ -18,7 +19,7 @@ key_env = "CEREBRAS_API_KEY"
 
 [[providers]]
 # verified 2026-11-25: https://aistudio.google.com/docs/openai, /docs/models
-# json_object on this endpoint is not confirmed by the docs: check it in the live eval.
+# json_object confirmed by a live call 2026-11-27 (200, valid JSON).
 name = "gemini"
 base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
 model = "gemini-3.5-flash-lite"
