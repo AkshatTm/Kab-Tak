@@ -177,7 +177,7 @@ Seed categories: `DSA`, `Theory subject`, `Assignment`, `Project coding`, `Admin
 - `estimate_min` is null if the user gave no guess → the card asks for one (it is required to start).
 - Multiple tasks in one message go into `extra_tasks`; tentative ones are flagged.
 - `clarifying_question` is used only when a required field is missing.
-- Code guard (ADR 0004): if the user's text has no digit, number word or time word, `estimate_min` is forced to null.
+- Code guard (ADR 0004): durations are parsed from the user's text (English, Hinglish, Devanagari). `estimate_min` is kept only if it equals one of them and that mention is not just a video's length; otherwise it is null. Titles lose durations the user did not write, and correction examples sent to the LLM show an estimate only under the same rule.
 
 ### 3.3 REST API (all JSON, prefix `/api`)
 | Method & path | Purpose |

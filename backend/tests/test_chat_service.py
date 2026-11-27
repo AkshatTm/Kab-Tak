@@ -172,7 +172,6 @@ def test_guard_nulls_invented_estimates(engine: Engine, text: str) -> None:
         ("notes do ghante lagenge", 120),
         ("revision, half an hour", 30),
         ("OS padhna hai, aadha ghanta", 30),
-        ("admin stuff, twenty", 20),
         ("graphs 45m", 45),
         ("fix the bug in a couple of hrs", 120),
         ("das minute ka kaam", 10),
@@ -284,12 +283,19 @@ def test_no_few_shot_block_without_corrections(engine: Engine) -> None:
 
 
 @pytest.mark.parametrize(
-    "text", ["do ghanto lagenge", "kaam ek ghantay ka", "एक घंटा लगेगा", "२० मिनट"]
+    ("text", "minutes"),
+    [
+        ("do ghanto lagenge", 120),
+        ("kaam ek ghantay ka", 60),
+        ("एक घंटा लगेगा", 60),
+        ("२० मिनट", 20),
+        ("dedh ghanta", 90),
+    ],
 )
-def test_guard_keeps_estimates_for_more_time_words(engine: Engine, text: str) -> None:
-    result = ParseResult(intent="create_task", task=ParsedTask(title="t", estimate_min=60))
+def test_guard_keeps_estimates_for_more_time_words(engine: Engine, text: str, minutes: int) -> None:
+    result = one_task(estimate_min=minutes)
     response = ChatService(engine, FakeCompleter(result)).parse(text)
-    assert response.cards[0].estimate_min == 60
+    assert response.cards[0].estimate_min == minutes
 
 
 @pytest.mark.parametrize("intent", ["question", "unknown", "create_task"])
@@ -371,3 +377,66 @@ def test_few_shot_hides_a_video_length_used_as_estimate(engine: Engine) -> None:
     video = [{"part_type_id": parts["video_watch"], "planned_qty": 25}]
     shown = _example_shown(engine, "watch a 25 min video", estimate_min=25, parts=video)
     assert '"estimate_min": null' in shown
+
+
+SPEC_SENTENCE = (
+    "Video 2, 30 min left on backtracking. Then handwrite both problem codes, then implement "
+    "them on laptop. I think 1.5 hours."
+)
+
+
+@pytest.mark.parametrize(
+    ("text", "answer", "video", "kept"),
+    [
+        ("Watch a 25 minute DSA video on tries", 25, 25, None),
+        ("Watch a 25 minute DSA video on tries", 25, None, None),  # no part extracted
+        ("Watch the tries video for 30 min", 30, 30, None),  # only mention is the video's
+        ("Solve 3 problems", 40, None, None),
+        ("Solve 3 problems in 1 hour", 40, None, None),  # a duration, but not that one
+        (SPEC_SENTENCE, 90, 30, 90),
+        (SPEC_SENTENCE, 30, 30, None),
+        ("25 min video, total 35 min", 25, 25, None),
+        ("25 min video, total 35 min", 35, 25, 35),
+    ],
+)
+def test_estimate_must_equal_a_duration_the_user_gave(
+    engine: Engine, text: str, answer: int, video: int | None, kept: int | None
+) -> None:
+    parts = [ParsedPart(type="video_watch", quantity=video)] if video else []
+    service = ChatService(engine, FakeCompleter(one_task(estimate_min=answer, parts=parts)))
+    response = service.parse(text)
+    assert response.cards[0].estimate_min == kept
+    assert response.parse_json is not None
+    assert response.parse_json["task"]["estimate_min"] == kept
+
+
+def test_video_length_of_one_task_is_not_the_estimate_of_another(engine: Engine) -> None:
+    result = one_task(title="A", parts=[ParsedPart(type="video_watch", quantity=20)])
+    result.extra_tasks = [ParsedTask(title="B", estimate_min=20)]
+    cards = ChatService(engine, FakeCompleter(result)).parse("watch for 20 min, then B").cards
+    assert [c.estimate_min for c in cards] == [None, None]
+
+
+@pytest.mark.parametrize(
+    ("title", "shown"),
+    [
+        ("Backtracking (45 min)", "Backtracking"),
+        ("Backtracking - about 2 hours", "Backtracking"),
+        ("1 hour graph revision", "graph revision"),
+        ("Tries 25 min video", "Tries 25 min video"),  # the user said 25
+        ("45 minutes", "Watch a 25 minute video on tries"),  # nothing left: the user's words
+    ],
+)
+def test_titles_never_carry_a_duration_the_user_did_not_say(
+    engine: Engine, title: str, shown: str
+) -> None:
+    service = ChatService(engine, FakeCompleter(one_task(title=title)))
+    response = service.parse("Watch a 25 minute video on tries")
+    assert response.cards[0].title == shown
+    assert response.parse_json is not None and response.parse_json["task"]["title"] == shown
+
+
+def test_asking_how_long_is_allowed(engine: Engine) -> None:
+    question = "How long do you think this will take?"
+    result = ParseResult(intent="question", clarifying_question=question)
+    assert ChatService(engine, FakeCompleter(result)).parse("hmm").reply == question

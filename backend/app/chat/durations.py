@@ -125,3 +125,21 @@ def stated_estimate(
     if estimate in video_quantities and len(same) < 2:
         return None  # the only mention is the video's length
     return estimate
+
+
+# what removing a duration leaves behind: empty brackets, a dangling "for" / "about"
+_FILLER = r"(?:~|≈|\b(?:about|approx\.?|around|for|in)\b)"
+_EMPTY_BRACKETS = re.compile(rf"[(\[]\s*(?:{_FILLER}\s*)*[)\]]", re.IGNORECASE)
+_DANGLING = re.compile(rf"(?:[\s\-–—:,;|]*{_FILLER})+\s*$", re.IGNORECASE)
+
+
+def strip_unsaid(title: str, text: str) -> str:
+    """The title without any duration the user did not write; may come back empty."""
+    said = {d.minutes for d in find_durations(text)}
+    unsaid = [d for d in find_durations(title) if d.minutes not in said]
+    if not unsaid:
+        return title
+    for d in reversed(unsaid):
+        title = title[: d.start] + title[d.end :]
+    title = _DANGLING.sub("", _EMPTY_BRACKETS.sub("", title))
+    return " ".join(title.split()).strip(" -–—:,;|~≈")

@@ -11,7 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 from sqlmodel import col, select
 
-from app.chat.durations import stated_estimate
+from app.chat.durations import stated_estimate, strip_unsaid
 from app.chat.schema import ParsedTask, ParseResult
 from app.db.models import Category, Correction, PartType
 from app.db.session import session_scope
@@ -28,15 +28,6 @@ _FAILED = "Couldn't understand that — fill the card manually"
 # a duration needs a time unit; this alone filters free text from the LLM ("Which one?" is fine)
 _TIME_UNIT = re.compile(
     r"\b(?:minutes?|mins?|minat|hours?|hrs?|ghant(?:a|e|ay|o|on))\b|\d\s*[mh]\b|घंट|मिनट",
-    re.IGNORECASE,
-)
-# shortcut: ADR 0004 heuristic (any digit, number word or time unit lets the LLM's estimate
-# through, even "2 problems"); tighten or extend if the eval shows invented or false-null values.
-# Hinglish numbers (ek, do, teen) are left out on purpose: they only mean a duration next to a
-# time unit, which already matches, and "do" is also an English verb.
-_HAS_TIME_HINT = re.compile(
-    _TIME_UNIT.pattern + r"|\d|\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven"
-    r"|twelve|fifteen|twenty|thirty|forty|fifty|sixty|ninety|half|quarter|couple)\b",
     re.IGNORECASE,
 )
 
@@ -88,9 +79,7 @@ class ChatService:
             return self._failed(text)
 
         tasks = [t for t in [result.task, *result.extra_tasks] if t is not None]
-        if not _HAS_TIME_HINT.search(text):
-            for task in tasks:
-                task.estimate_min = None
+        _drop_unsaid_durations(tasks, text)
 
         intent: str = result.intent
         if intent == "create_task" and not tasks:
@@ -120,11 +109,26 @@ class ChatService:
         has_any_key = getattr(self.completer, "has_any_key", None)
         if has_any_key is not None and not has_any_key():
             reply += " (no API key is configured)"
-        title = " ".join(text.split())[:_TITLE_MAX].rstrip() or "Untitled task"
+        title = _title_from(text)
         card = TaskCreate(title=title, raw_text=text, source="chat")
         return ChatResponse(
             intent="unknown", reply=reply, cards=[card], parsed=False, parse_json=None
         )
+
+
+def _title_from(text: str) -> str:
+    return " ".join(text.split())[:_TITLE_MAX].rstrip() or "Untitled task"
+
+
+def _drop_unsaid_durations(tasks: list[ParsedTask], text: str) -> None:
+    """ADR 0004: an estimate or title may only repeat a duration the user wrote."""
+    videos = [
+        p.quantity for t in tasks for p in t.parts if p.type.strip().casefold() == "video_watch"
+    ]
+    # shortcut: two tasks may both claim one stated duration; split by clause if the eval shows it
+    for task in tasks:
+        task.estimate_min = stated_estimate(task.estimate_min, text, videos)
+        task.title = strip_unsaid(task.title, text) or _title_from(text)
 
 
 def _system_prompt(

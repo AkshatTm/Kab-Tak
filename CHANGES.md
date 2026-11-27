@@ -2,6 +2,9 @@
 
 One entry per change to SPEC.md: what changed and why. Newest first.
 
+## 2026-11-27 — S2 review fixes
+- SPEC §3.2: the ADR 0004 code guard now matches the estimate's value against durations in the user's text (was: any digit or time word passed), and covers titles and correction examples.
+
 ## 2026-11-25 — S2 chat contract
 - SPEC §3.3: `/chat` returns `cards[]` (task bodies) with `parsed` and `parse_json`; added `POST /corrections`.
 - SPEC §2.4/§3.2: intents handled in S2; ADR 0004 code guard on `estimate_min`.
