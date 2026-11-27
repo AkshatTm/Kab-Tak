@@ -1,3 +1,5 @@
+import json
+import re
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any, TypeVar
@@ -440,3 +442,43 @@ def test_asking_how_long_is_allowed(engine: Engine) -> None:
     question = "How long do you think this will take?"
     result = ParseResult(intent="question", clarifying_question=question)
     assert ChatService(engine, FakeCompleter(result)).parse("hmm").reply == question
+
+
+def _worked_examples(prompt: str) -> list[tuple[str, ParseResult]]:
+    block = prompt.split("## Worked examples")[1].split("\n## ")[0]
+    inputs = re.findall(r"^Input: (.+)$", block, re.MULTILINE)
+    outputs = re.findall(r"^Output: (.+)$", block, re.MULTILINE)
+    assert len(inputs) == len(outputs)
+    return [
+        (json.loads(i), ParseResult.model_validate_json(o))
+        for i, o in zip(inputs, outputs, strict=True)
+    ]
+
+
+def test_prompt_examples_are_valid_and_follow_adr_0004(engine: Engine) -> None:
+    completer = FakeCompleter(ParseResult(intent="unknown"))
+    ChatService(engine, completer).parse("hello")
+    prompt = completer.messages[0]["content"]
+    examples = _worked_examples(prompt)
+    assert 3 <= len(examples) <= 4
+    assert examples[0][0] == SPEC_SENTENCE
+    categories, part_types = ids(engine)
+    estimates = []
+    for text, result in examples:
+        # running the example through the app must change nothing: it already obeys the guard
+        answer = ChatService(engine, FakeCompleter(result)).parse(text)
+        assert answer.parse_json == result.model_dump(), text
+        for task in [result.task, *result.extra_tasks]:
+            assert task is not None and task.category in categories
+            assert {p.type for p in task.parts} <= set(part_types)
+            estimates.append(task.estimate_min)
+    first = examples[0][1].task
+    assert first is not None and (first.category, first.estimate_min) == ("DSA", 90)
+    assert [(p.type, p.quantity) for p in first.parts] == [
+        ("video_watch", 30),
+        ("handwrite_code", 2),
+        ("implement_code", 2),
+    ]
+    assert None in estimates and any("ghant" in text for text, _ in examples)
+    for word in ('"both"', "dedh", "dhai", "aadha", "sava", "never the estimate"):
+        assert word in prompt, word
