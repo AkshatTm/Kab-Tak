@@ -1,6 +1,6 @@
 # Design brief (input for `/impeccable teach`)
 
-Feed this to `/impeccable teach` so it can write `.impeccable.md`. After that, `.impeccable.md` is the design authority.
+Fed to `/impeccable teach`, which wrote `PRODUCT.md` (product facts). This file stays the source for visual direction.
 
 ## Audience
 - Students and self-learners who underestimate how long study and coding tasks take.
