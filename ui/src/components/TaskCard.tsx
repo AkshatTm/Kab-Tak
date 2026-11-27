@@ -70,22 +70,21 @@ export default function TaskCard(props: Props) {
       aria-label="Task card"
       noValidate
       onSubmit={confirm}
-      className="grid gap-3 rounded-lg border border-line bg-surface p-4"
+      className="grid gap-2.5 rounded-lg border border-line bg-surface p-3"
     >
-      <label className="grid gap-1 text-sm text-dim">
-        Title
-        <input
-          className="field text-base font-semibold text-ink"
-          value={draft.title}
-          onChange={(e) => change({ title: e.target.value })}
-        />
-      </label>
-
-      <div className="flex flex-wrap items-end gap-x-5 gap-y-2">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+        <label className="grid flex-1 basis-56 gap-1 text-sm text-dim">
+          Title
+          <input
+            className="field text-base font-semibold text-ink"
+            value={draft.title}
+            onChange={(e) => change({ title: e.target.value })}
+          />
+        </label>
         <label className="grid gap-1 text-sm text-dim">
           Category
           <select
-            className="field text-base text-ink"
+            className="field h-[2.4rem] text-base text-ink"
             value={draft.category_id ?? ''}
             onChange={(e) => change({ category_id: e.target.value || null })}
           >
@@ -97,7 +96,7 @@ export default function TaskCard(props: Props) {
             ))}
           </select>
         </label>
-        <label className="flex items-center gap-2 py-1.5">
+        <label className="flex items-center gap-2 py-2">
           <input
             type="checkbox"
             className="size-4 accent-accent"
@@ -108,16 +107,19 @@ export default function TaskCard(props: Props) {
         </label>
       </div>
 
-      <fieldset className="grid gap-2">
+      <fieldset className="grid gap-1.5">
         <legend className="mb-1 text-sm text-dim">Parts</legend>
         {draft.parts.map((part, i) => {
           const label = typeOf(part.part_type_id)?.label ?? 'part'
           return (
             // rows have no id of their own; every field is controlled, so index keys are safe
-            <div key={i} className="flex flex-wrap items-center gap-2">
+            <div
+              key={i}
+              className="grid grid-cols-[minmax(0,15rem)_4.5rem_4.5rem_auto] items-center gap-2 text-sm"
+            >
               <select
                 aria-label="Part type"
-                className="field flex-1 basis-40"
+                className="field py-1"
                 value={part.part_type_id}
                 onChange={(e) => changePart(i, { part_type_id: e.target.value })}
               >
@@ -132,27 +134,30 @@ export default function TaskCard(props: Props) {
                 min="0"
                 step="any"
                 aria-label={`Quantity of ${label}`}
-                className="field w-24 text-right"
+                className="field py-1 text-right"
                 value={Number.isNaN(part.planned_qty) ? '' : part.planned_qty}
                 onChange={(e) => changePart(i, { planned_qty: e.target.valueAsNumber })}
               />
-              <span className="w-24 text-sm text-dim">
+              <span className="text-dim">
                 {typeOf(part.part_type_id)?.unit.replace('content_min', 'video min')}
               </span>
               <button
                 type="button"
                 aria-label={`Remove ${label}`}
-                className="btn text-sm"
+                title="Remove"
+                className="btn justify-self-start p-1.5"
                 onClick={() => change({ parts: draft.parts.filter((_, j) => j !== i) })}
               >
-                Remove
+                <svg aria-hidden viewBox="0 0 16 16" className="size-4" stroke="currentColor">
+                  <path d="M4 4l8 8M12 4l-8 8" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
               </button>
             </div>
           )
         })}
         <button
           type="button"
-          className="btn justify-self-start text-sm"
+          className="btn justify-self-start py-1 text-sm"
           onClick={() => {
             const type = partTypes.find((t) => t.key === 'other') ?? partTypes[0]
             change({ parts: [...draft.parts, { part_type_id: type.id, planned_qty: 1 }] })
@@ -162,7 +167,7 @@ export default function TaskCard(props: Props) {
         </button>
       </fieldset>
 
-      <div className="flex flex-wrap items-end gap-x-4 gap-y-2 border-t border-line pt-3">
+      <div className="flex flex-wrap items-end gap-x-3 gap-y-1 border-t border-line pt-2">
         <label className="grid gap-1 text-sm text-dim">
           Your guess (minutes)
           <input
@@ -170,27 +175,27 @@ export default function TaskCard(props: Props) {
             inputMode="numeric"
             min="1"
             autoFocus={autoFocus}
-            className="field w-36 text-3xl font-semibold text-ink"
+            className="field w-32 py-0.5 text-3xl font-semibold text-ink"
             value={guess ?? ''}
             onChange={(e) =>
               change({ estimate_min: e.target.value === '' ? null : e.target.valueAsNumber })
             }
           />
         </label>
-        <span className="pb-3 text-dim">
+        <span className="pb-2 text-dim">
           {guess != null && Number.isInteger(guess) && guess > 0 ? formatMinutes(guess) : ''}
         </span>
+        <p id={reasonId} className="ml-auto pb-2 text-sm text-dim">
+          {reason ?? 'Press Enter to confirm.'}
+        </p>
         <button
           type="submit"
-          className="btn btn-primary mb-1 ml-auto"
+          className="btn btn-primary mb-1"
           disabled={phase === 'saving' || reason !== null}
           aria-describedby={reasonId}
         >
           {phase === 'saving' ? 'Saving…' : 'Confirm task'}
         </button>
-        <p id={reasonId} className="w-full text-right text-sm text-dim">
-          {reason ?? 'Press Enter to confirm.'}
-        </p>
       </div>
       {problem && (
         <p role="alert" className="text-error">

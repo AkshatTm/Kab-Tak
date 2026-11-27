@@ -42,14 +42,14 @@ export default function ChatScreen() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto px-4">
-        <div className="mx-auto grid max-w-2xl gap-3 py-4">
+        <div className="mx-auto grid max-w-2xl gap-2 py-3">
           {entries.length === 0 && (
             <p className="text-dim">
               Type what you're about to work on, with your own time guess. For example: “Solve 2
               graph problems, I think 40 min.”
             </p>
           )}
-          <ol aria-label="Conversation" aria-live="polite" className="grid gap-3">
+          <ol aria-label="Conversation" aria-live="polite" className="grid gap-2">
             {entries.map((entry) =>
               'text' in entry ? (
                 <li
@@ -106,7 +106,7 @@ export default function ChatScreen() {
       </div>
 
       <form
-        className="border-t border-line px-4 py-3"
+        className="border-t border-line px-4 py-2"
         onSubmit={(e) => {
           e.preventDefault()
           send()
@@ -117,10 +117,10 @@ export default function ChatScreen() {
             ref={input}
             autoFocus
             aria-label="Message"
-            rows={2}
+            rows={1}
             maxLength={4000}
             placeholder="Task and your guess"
-            className="field flex-1 resize-none"
+            className="field field-sizing-content max-h-32 flex-1 resize-none"
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
