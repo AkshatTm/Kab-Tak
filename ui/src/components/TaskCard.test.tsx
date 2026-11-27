@@ -42,7 +42,7 @@ it('typing a guess enables Confirm and submitting saves the edited card', async 
   expect(confirm()).toBeEnabled()
   expect(screen.getByText('40 min')).toBeInTheDocument()
   enter()
-  expect(await screen.findByRole('status')).toHaveTextContent(/saved/i)
+  expect(await screen.findByText(/^Saved/)).toBeInTheDocument()
   const [task] = api.posts('POST /api/tasks')
   expect(task.body).toEqual({
     ...CARD,
@@ -57,7 +57,7 @@ it('records one correction for an edited card', async () => {
   show()
   fireEvent.change(guess(), { target: { value: '40' } })
   enter()
-  await screen.findByRole('status')
+  await screen.findByText(/^Saved/)
   const corrections = api.posts('POST /api/corrections')
   expect(corrections).toHaveLength(1)
   expect(corrections[0].body).toEqual({
@@ -71,7 +71,7 @@ it('records no correction for an untouched card', async () => {
   const api = fakeBackend()
   show(30)
   enter()
-  await screen.findByRole('status')
+  await screen.findByText(/^Saved/)
   expect(api.posts('POST /api/corrections')).toHaveLength(0)
 })
 
@@ -80,7 +80,7 @@ it('saves once even if submitted twice', async () => {
   show(30)
   enter()
   enter()
-  await screen.findByRole('status')
+  await screen.findByText(/^Saved/)
   expect(api.posts('POST /api/tasks')).toHaveLength(1)
 })
 
@@ -100,8 +100,8 @@ it('still reports the task saved when only the correction fails', async () => {
   show()
   fireEvent.change(guess(), { target: { value: '40' } })
   enter()
-  await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(/saved/i))
-  expect(screen.getByRole('status')).toHaveTextContent(/fix wasn't recorded/i)
+  await waitFor(() => expect(screen.getByText(/^Saved/)).toBeInTheDocument())
+  expect(screen.getByText(/^Saved/)).toHaveTextContent(/fix wasn't recorded/i)
 })
 
 it('adds and removes parts', async () => {
@@ -111,8 +111,17 @@ it('adds and removes parts', async () => {
   fireEvent.click(screen.getByRole('button', { name: /add part/i }))
   fireEvent.change(screen.getByLabelText(/part type/i), { target: { value: 'pt-other' } })
   enter()
-  await screen.findByRole('status')
+  await screen.findByText(/^Saved/)
   expect(api.posts('POST /api/tasks')[0].body).toMatchObject({
     parts: [{ part_type_id: 'pt-other', planned_qty: 1 }],
   })
+})
+
+it('cannot be edited while it is being saved', async () => {
+  fakeBackend()
+  show(30)
+  enter()
+  expect(guess()).toBeDisabled()
+  expect(screen.getByLabelText(/title/i)).toBeDisabled()
+  await screen.findByText(/^Saved/)
 })

@@ -9,6 +9,7 @@ type Entry = { id: number } & ({ text: string } | { response: ChatResponse })
 export default function ChatScreen() {
   const [entries, setEntries] = useState<Entry[]>([])
   const [text, setText] = useState('')
+  const [said, setSaid] = useState('') // read out by screen readers
   const nextId = useRef(0)
   const input = useRef<HTMLTextAreaElement>(null)
   const end = useRef<HTMLDivElement>(null)
@@ -17,16 +18,31 @@ export default function ChatScreen() {
   const partTypes = useQuery({ queryKey: ['part-types'], queryFn: getPartTypes })
   const chat = useMutation({
     mutationFn: ({ message }: { message: string; id: number }) => postChat(message),
-    onSuccess: (response) => setEntries((e) => [...e, { id: nextId.current++, response }]),
+    onSuccess: (response) => {
+      setSaid(response.reply)
+      setEntries((e) => [...e, { id: nextId.current++, response }])
+    },
     onError: (_, { message, id }) => {
       setEntries((e) => e.filter((entry) => entry.id !== id))
-      setText((typed) => typed || message) // never lose what the user wrote
+      // never lose what the user wrote, including anything typed while waiting
+      setText((typed) => (typed ? `${message}\n${typed}` : message))
+      setSaid('')
     },
   })
 
   useEffect(() => {
     end.current?.scrollIntoView?.({ block: 'nearest' })
   }, [entries, chat.isPending])
+
+  /** Focus was inside the card that just closed: go to the next open card, else the box. */
+  function afterSave(message: string) {
+    setSaid(message)
+    if (document.activeElement !== document.body) return // the user already moved on
+    const next = document.querySelector<HTMLInputElement>(
+      'form[aria-label="Task card"] input[inputmode="numeric"]',
+    )
+    ;(next ?? input.current)?.focus()
+  }
 
   function send() {
     const message = text.trim()
@@ -49,7 +65,7 @@ export default function ChatScreen() {
               graph problems, I think 40 min.”
             </p>
           )}
-          <ol aria-label="Conversation" aria-live="polite" className="grid gap-2">
+          <ol aria-label="Conversation" className="grid gap-2">
             {entries.map((entry) =>
               'text' in entry ? (
                 <li
@@ -70,8 +86,9 @@ export default function ChatScreen() {
                           parseJson={entry.response.parse_json}
                           categories={categories.data}
                           partTypes={partTypes.data}
-                          autoFocus={i === 0}
-                          onSaved={() => input.current?.focus()}
+                          // never pull focus away from a message being typed
+                          autoFocus={i === 0 && text === ''}
+                          onSaved={afterSave}
                         />
                       ))
                     : entry.response.cards.length > 0 &&
@@ -80,7 +97,9 @@ export default function ChatScreen() {
               ),
             )}
           </ol>
-          {chat.isPending && <p className="text-dim">Reading your message…</p>}
+          <div role="status" className={chat.isPending ? 'text-dim' : 'sr-only'}>
+            {chat.isPending ? 'Reading your message…' : said}
+          </div>
           {listsFailed && (
             <p role="alert" className="text-error">
               Couldn't load categories and part types.{' '}

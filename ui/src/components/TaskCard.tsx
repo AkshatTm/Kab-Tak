@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { createTask, postCorrection, type Category, type PartType } from '../api/client'
 import { blocker, formatMinutes, fromCard, isEdited, toTaskCreate, type Card } from '../card/cardState'
 
@@ -8,7 +8,7 @@ type Props = {
   categories: Category[]
   partTypes: PartType[]
   autoFocus?: boolean
-  onSaved: () => void
+  onSaved: (message: string) => void
 }
 
 export default function TaskCard(props: Props) {
@@ -18,6 +18,7 @@ export default function TaskCard(props: Props) {
   const [problem, setProblem] = useState<string | null>(null)
   const [correctionLost, setCorrectionLost] = useState(false)
   const busy = useRef(false)
+  const reported = useRef(false)
   const reasonId = useId()
 
   const change = (patch: Partial<Card>) => setDraft((d) => ({ ...d, ...patch }))
@@ -53,14 +54,22 @@ export default function TaskCard(props: Props) {
       }
     }
     setPhase('saved')
-    onSaved()
   }
+
+  const lost = correctionLost ? " Your fix wasn't recorded for next time." : ''
+  const savedGuess = formatMinutes(draft.estimate_min ?? 0)
+  const savedMessage = `Saved “${draft.title.trim()}”. Your guess: ${savedGuess}.${lost}`
+  // after the form is gone from the page, so the parent can move focus past it
+  useEffect(() => {
+    if (phase !== 'saved' || reported.current) return
+    reported.current = true
+    onSaved(savedMessage)
+  }, [phase, savedMessage, onSaved])
 
   if (phase === 'saved') {
     return (
-      <p role="status" className="rounded-lg border border-line px-4 py-3">
-        Saved “{draft.title.trim()}”. Your guess: <strong>{formatMinutes(guess!)}</strong>.
-        {correctionLost && ' Your fix wasn\'t recorded for next time.'}
+      <p className="rounded-lg border border-line px-4 py-3">
+        Saved “{draft.title.trim()}”. Your guess: <strong>{savedGuess}</strong>.{lost}
       </p>
     )
   }
@@ -72,6 +81,7 @@ export default function TaskCard(props: Props) {
       onSubmit={confirm}
       className="grid gap-2.5 rounded-lg border border-line bg-surface p-3"
     >
+      <fieldset disabled={phase === 'saving'} className="contents">
       <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
         <label className="grid flex-1 basis-56 gap-1 text-sm text-dim">
           Title
@@ -197,6 +207,7 @@ export default function TaskCard(props: Props) {
           {phase === 'saving' ? 'Saving…' : 'Confirm task'}
         </button>
       </div>
+      </fieldset>
       {problem && (
         <p role="alert" className="text-error">
           {problem}
