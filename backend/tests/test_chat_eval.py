@@ -1,5 +1,6 @@
 """Live parser eval: `uv run pytest -m live tests/test_chat_eval.py -s`. Fails below 90% overall."""
 
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
@@ -9,6 +10,8 @@ from pydantic import BaseModel, ConfigDict, PositiveFloat, PositiveInt
 from sqlmodel import select
 
 pytestmark = pytest.mark.live
+# free-tier tokens-per-minute limits: back-to-back calls get 429 and count as parser misses
+PACE_S = 15
 
 FIXTURE = Path(__file__).parent / "fixtures" / "chat_eval.jsonl"
 FIELDS = ("intent", "n_tasks", "category", "estimate_min", "tentative", "familiarity", "parts")
@@ -132,6 +135,8 @@ def test_live_chat_eval(migrated_url: str) -> None:
 
     cases: list[tuple[GoldLine, dict[str, Any] | None]] = []
     for gold in load_gold():
+        if cases:
+            time.sleep(PACE_S)
         response = service.parse(gold.text)
         parsed = response.parse_json if response.parsed else None
         if isinstance(parsed, BaseModel):
