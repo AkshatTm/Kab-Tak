@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from functools import cache
 
 from fastapi import FastAPI, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import Engine
@@ -78,6 +79,13 @@ def create_app(
     app.include_router(tasks_router)
     app.include_router(chat_router)
     register_errors(app)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(_: Request, exc: RequestValidationError) -> JSONResponse:
+        # without "input": echoing text that is not valid UTF-8 would turn the 422 into a 500
+        detail = [{k: e[k] for k in ("type", "loc", "msg")} for e in exc.errors()]
+        return JSONResponse({"detail": detail}, status_code=422)
+
     return app
 
 

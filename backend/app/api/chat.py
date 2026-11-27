@@ -1,15 +1,19 @@
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request
-from pydantic import BaseModel, StringConstraints
+from pydantic import AfterValidator, BaseModel, StringConstraints
 
 from app.chat.service import ChatResponse, ChatService
-from app.timer.inputs import TaskCreate
+from app.timer.inputs import TaskCreate, no_surrogates
 
 router = APIRouter(prefix="/api")
 
 
-Text = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=4000)]
+Text = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=4000),
+    AfterValidator(no_surrogates),
+]
 
 
 class ChatIn(BaseModel):

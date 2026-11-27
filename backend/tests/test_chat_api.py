@@ -133,3 +133,21 @@ def test_api_key_never_reaches_response_or_db(db_url: str) -> None:
 def test_absurd_numbers_are_422_not_500(client: TestClient) -> None:
     huge = {"title": "x", "estimate_min": 10**26}
     assert client.post("/api/tasks", json=huge).status_code == 422
+
+
+LONE = "a\\ud800"  # a JSON escape for half of a surrogate pair: valid JSON, not valid text
+
+
+@pytest.mark.parametrize(
+    ("path", "body"),
+    [
+        ("/api/chat", f'{{"text": "{LONE}"}}'),
+        ("/api/corrections", f'{{"raw_text": "{LONE}", "corrected_json": {{"title": "t"}}}}'),
+        # a stored title is quoted back to the LLM as an example, so it must be refused too
+        ("/api/corrections", f'{{"raw_text": "t", "corrected_json": {{"title": "{LONE}"}}}}'),
+        ("/api/tasks", f'{{"title": "{LONE}"}}'),
+    ],
+)
+def test_lone_surrogates_are_422_not_500(client: TestClient, path: str, body: str) -> None:
+    r = client.post(path, content=body.encode(), headers={"content-type": "application/json"})
+    assert r.status_code == 422, r.text
