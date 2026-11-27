@@ -1,0 +1,158 @@
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { useEffect, useRef, useState } from 'react'
+import { getCategories, getPartTypes, postChat, type ChatResponse } from '../api/client'
+import TaskCard from './TaskCard'
+
+type Entry = { id: number } & ({ text: string } | { response: ChatResponse })
+
+/** The conversation lives in memory only (D8). */
+export default function ChatScreen() {
+  const [entries, setEntries] = useState<Entry[]>([])
+  const [text, setText] = useState('')
+  const [said, setSaid] = useState('') // read out by screen readers
+  const nextId = useRef(0)
+  const input = useRef<HTMLTextAreaElement>(null)
+  const end = useRef<HTMLDivElement>(null)
+
+  const categories = useQuery({ queryKey: ['categories'], queryFn: getCategories })
+  const partTypes = useQuery({ queryKey: ['part-types'], queryFn: getPartTypes })
+  const chat = useMutation({
+    mutationFn: ({ message }: { message: string; id: number }) => postChat(message),
+    onSuccess: (response) => {
+      setSaid(response.reply)
+      setEntries((e) => [...e, { id: nextId.current++, response }])
+    },
+    onError: (_, { message, id }) => {
+      setEntries((e) => e.filter((entry) => entry.id !== id))
+      // never lose what the user wrote, including anything typed while waiting
+      setText((typed) => (typed ? `${message}\n${typed}` : message))
+      setSaid('')
+    },
+  })
+
+  useEffect(() => {
+    end.current?.scrollIntoView?.({ block: 'nearest' })
+  }, [entries, chat.isPending])
+
+  /** Focus was inside the card that just closed: go to the next open card, else the box. */
+  function afterSave(message: string) {
+    setSaid(message)
+    if (document.activeElement !== document.body) return // the user already moved on
+    const next = document.querySelector<HTMLInputElement>(
+      'form[aria-label="Task card"] input[inputmode="numeric"]',
+    )
+    ;(next ?? input.current)?.focus()
+  }
+
+  function send() {
+    const message = text.trim()
+    if (!message || chat.isPending) return
+    const id = nextId.current++
+    setEntries((e) => [...e, { id, text: message }])
+    setText('')
+    chat.mutate({ message, id })
+  }
+
+  const listsFailed = categories.isError || partTypes.isError
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4">
+        <div className="mx-auto grid max-w-2xl gap-2 py-3">
+          {entries.length === 0 && (
+            <p className="text-dim">
+              Type what you're about to work on, with your own time guess. For example: “Solve 2
+              graph problems, I think 40 min.”
+            </p>
+          )}
+          <ol aria-label="Conversation" className="grid gap-2">
+            {entries.map((entry) =>
+              'text' in entry ? (
+                <li
+                  key={entry.id}
+                  className="max-w-[85%] justify-self-end rounded-lg bg-line px-3 py-2 break-words whitespace-pre-wrap"
+                >
+                  <span className="sr-only">You: </span>
+                  {entry.text}
+                </li>
+              ) : (
+                <li key={entry.id} className="grid gap-2">
+                  <p>{entry.response.reply}</p>
+                  {categories.data && partTypes.data
+                    ? entry.response.cards.map((card, i) => (
+                        <TaskCard
+                          key={i}
+                          card={card}
+                          parseJson={entry.response.parse_json}
+                          categories={categories.data}
+                          partTypes={partTypes.data}
+                          // never pull focus away from a message being typed
+                          autoFocus={i === 0 && text === ''}
+                          onSaved={afterSave}
+                        />
+                      ))
+                    : entry.response.cards.length > 0 &&
+                      !listsFailed && <p className="text-dim">Loading the card…</p>}
+                </li>
+              ),
+            )}
+          </ol>
+          <div role="status" className={chat.isPending ? 'text-dim' : 'sr-only'}>
+            {chat.isPending ? 'Reading your message…' : said}
+          </div>
+          {listsFailed && (
+            <p role="alert" className="text-error">
+              Couldn't load categories and part types.{' '}
+              <button
+                type="button"
+                className="btn text-sm text-ink"
+                onClick={() => {
+                  void categories.refetch()
+                  void partTypes.refetch()
+                }}
+              >
+                Try again
+              </button>
+            </p>
+          )}
+          {chat.isError && (
+            <p role="alert" className="text-error">
+              Couldn't send: {chat.error.message}. Your text is back in the box.
+            </p>
+          )}
+          <div ref={end} />
+        </div>
+      </div>
+
+      <form
+        className="border-t border-line px-4 py-2"
+        onSubmit={(e) => {
+          e.preventDefault()
+          send()
+        }}
+      >
+        <div className="mx-auto flex max-w-2xl items-end gap-2">
+          <textarea
+            ref={input}
+            autoFocus
+            aria-label="Message"
+            rows={1}
+            maxLength={4000}
+            placeholder="Task and your guess"
+            className="field field-sizing-content max-h-32 flex-1 resize-none"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
+              e.preventDefault()
+              send()
+            }}
+          />
+          <button type="submit" className="btn" disabled={!text.trim() || chat.isPending}>
+            Send
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}

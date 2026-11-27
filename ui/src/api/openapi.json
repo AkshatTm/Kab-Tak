@@ -31,9 +31,69 @@
         "title": "CategoryOut",
         "type": "object"
       },
+      "ChatIn": {
+        "properties": {
+          "text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "ChatIn",
+        "type": "object"
+      },
+      "ChatResponse": {
+        "properties": {
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/TaskCreate"
+            },
+            "title": "Cards",
+            "type": "array"
+          },
+          "intent": {
+            "title": "Intent",
+            "type": "string"
+          },
+          "parse_json": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parse Json"
+          },
+          "parsed": {
+            "title": "Parsed",
+            "type": "boolean"
+          },
+          "reply": {
+            "title": "Reply",
+            "type": "string"
+          }
+        },
+        "required": [
+          "intent",
+          "reply",
+          "cards",
+          "parsed",
+          "parse_json"
+        ],
+        "title": "ChatResponse",
+        "type": "object"
+      },
       "CompletedPart": {
         "properties": {
           "completed_qty": {
+            "maximum": 100000.0,
             "minimum": 0.0,
             "title": "Completed Qty",
             "type": "number"
@@ -72,6 +132,50 @@
           "detail"
         ],
         "title": "ConflictOut",
+        "type": "object"
+      },
+      "CorrectionIn": {
+        "properties": {
+          "corrected_json": {
+            "$ref": "#/components/schemas/TaskCreate"
+          },
+          "llm_output_json": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Output Json"
+          },
+          "raw_text": {
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Raw Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "raw_text",
+          "corrected_json"
+        ],
+        "title": "CorrectionIn",
+        "type": "object"
+      },
+      "CorrectionOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "title": "CorrectionOut",
         "type": "object"
       },
       "ErrorOut": {
@@ -136,6 +240,7 @@
           },
           "planned_qty": {
             "exclusiveMinimum": 0.0,
+            "maximum": 100000.0,
             "title": "Planned Qty",
             "type": "number"
           }
@@ -288,6 +393,7 @@
             "anyOf": [
               {
                 "exclusiveMinimum": 0.0,
+                "maximum": 10000.0,
                 "type": "integer"
               },
               {
@@ -545,6 +651,7 @@
             "anyOf": [
               {
                 "exclusiveMinimum": 0.0,
+                "maximum": 10000.0,
                 "type": "integer"
               },
               {
@@ -688,6 +795,82 @@
           }
         },
         "summary": "Categories"
+      }
+    },
+    "/api/chat": {
+      "post": {
+        "operationId": "chat_api_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat"
+      }
+    },
+    "/api/corrections": {
+      "post": {
+        "operationId": "add_correction_api_corrections_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CorrectionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorrectionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Add Correction"
       }
     },
     "/api/health": {

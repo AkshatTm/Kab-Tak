@@ -1,21 +1,33 @@
 """Request bodies. Shared by the service and the API (Pydantic for all API I/O)."""
 
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
+
+MAX_ESTIMATE_MIN = 10_000  # about a week; anything larger is a typo or a bad parse
+MAX_QTY = 100_000
+
+
+def no_surrogates(value: str) -> str:
+    if any("\ud800" <= c <= "\udfff" for c in value):  # cannot be stored or sent as UTF-8
+        raise ValueError("text contains an unpaired surrogate")
+    return value
+
+
+Text = Annotated[str, AfterValidator(no_surrogates)]
 
 
 class PartIn(BaseModel):
     part_type_id: str
-    planned_qty: float = Field(gt=0)
+    planned_qty: float = Field(gt=0, le=MAX_QTY, allow_inf_nan=False)
 
 
 class TaskCreate(BaseModel):
-    title: str = Field(min_length=1)
-    raw_text: str | None = None
+    title: Text = Field(min_length=1)
+    raw_text: Text | None = None
     category_id: str | None = None
-    estimate_min: int | None = Field(default=None, gt=0)
+    estimate_min: int | None = Field(default=None, gt=0, le=MAX_ESTIMATE_MIN)
     tentative: bool = False
     familiarity: Literal["new", "familiar"] | None = None
     source: Literal["chat", "retro", "manual"] = "manual"
@@ -25,10 +37,10 @@ class TaskCreate(BaseModel):
 class TaskPatch(BaseModel):
     """Only fields that are sent change. `estimate_min` can be set but not cleared."""
 
-    title: str | None = Field(default=None, min_length=1)
-    raw_text: str | None = None
+    title: Text | None = Field(default=None, min_length=1)
+    raw_text: Text | None = None
     category_id: str | None = None
-    estimate_min: int | None = Field(default=None, gt=0)
+    estimate_min: int | None = Field(default=None, gt=0, le=MAX_ESTIMATE_MIN)
     tentative: bool | None = None
     familiarity: Literal["new", "familiar"] | None = None
     parts: list[PartIn] | None = None
@@ -40,7 +52,7 @@ class PauseIn(BaseModel):
 
 class CompletedPart(BaseModel):
     part_id: str
-    completed_qty: float = Field(ge=0)
+    completed_qty: float = Field(ge=0, le=MAX_QTY, allow_inf_nan=False)
 
 
 class StopIn(BaseModel):

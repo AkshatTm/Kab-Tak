@@ -1,21 +1,26 @@
 # LLM provider chain (ADR 0002). Order is fixed: Groq -> Cerebras -> Gemini.
-# Model ids are placeholders: verify against provider docs in S2 before use.
-timeout_s = 20
+timeout_s = 8
+deadline_s = 12
 
 [[providers]]
+# verified 2026-11-25: https://console.groq.com/docs/models, /docs/openai
+# json_object confirmed by a live call 2026-11-27 (200, valid JSON).
 name = "groq"
 base_url = "https://api.groq.com/openai/v1"
-model = "VERIFY-IN-S2"
+model = "openai/gpt-oss-20b"
 key_env = "GROQ_API_KEY"
 
 [[providers]]
+# verified 2026-11-25: https://inference-docs.cerebras.ai/models/overview, /capabilities/structured-outputs
 name = "cerebras"
 base_url = "https://api.cerebras.ai/v1"
-model = "VERIFY-IN-S2"
+model = "gpt-oss-120b"
 key_env = "CEREBRAS_API_KEY"
 
 [[providers]]
+# verified 2026-11-25: https://aistudio.google.com/docs/openai, /docs/models
+# json_object confirmed by a live call 2026-11-27 (200, valid JSON).
 name = "gemini"
-base_url = "https://generativelanguage.googleapis.com/v1beta"
-model = "VERIFY-IN-S2"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
+model = "gemini-3.5-flash-lite"
 key_env = "GEMINI_API_KEY"

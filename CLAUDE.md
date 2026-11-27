@@ -73,7 +73,7 @@ Edit SPEC.md + add a CHANGES.md entry. Never create new PRD/design docs. New big
 
 ## Skills / plugins (and overrides)
 - **Superpowers:** as in the session protocol. Overrides: skip `brainstorming` (SPEC is done); `writing-plans` saves to `plans/Sx.md`; `finishing-a-development-branch` never merges (git workflow above); no worktrees.
-- **Impeccable** is the single design authority (`.impeccable.md`, from `/impeccable teach` + DESIGN_BRIEF.md). `frontend-design` only sets the direction in S2, inside Impeccable's context. `taste-skill` only for an optional landing page in S11.
+- **Impeccable** is the single design authority (`PRODUCT.md`, from `/impeccable teach` + DESIGN_BRIEF.md; visual direction in DESIGN_BRIEF.md). `frontend-design` only sets the direction in S2, inside Impeccable's context. `taste-skill` only for an optional landing page in S11.
 - **Ponytail** is always on: smallest complete change, `shortcut:` comments for known limits; `/ponytail-debt` + `/ponytail-audit` before S11.
 - No Handoff plugin: `/done` + PROGRESS.md is the handoff.
 

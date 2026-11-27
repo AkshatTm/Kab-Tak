@@ -114,14 +114,15 @@ def test_batch_migration_on_parent_table_survives_foreign_keys(tmp_path: Path) -
         "def upgrade() -> None:\n"
         "    op.execute('CREATE TABLE parent (id INTEGER PRIMARY KEY)')\n"
         "    op.execute('CREATE TABLE child (id INTEGER PRIMARY KEY, "
-        "p INTEGER REFERENCES parent(id))')\n"
+        "p INTEGER REFERENCES parent(id) ON DELETE CASCADE)')\n"
         "    op.execute('INSERT INTO parent VALUES (1)')\n"
         "    op.execute('INSERT INTO child VALUES (1, 1)')\n"
     )
     (d / "versions" / "r2.py").write_text(
         "import sqlalchemy as sa\nfrom alembic import op\nrevision = 'r2'\ndown_revision = 'r1'\n"
         "def upgrade() -> None:\n"
-        "    with op.batch_alter_table('parent') as b:\n"
+        # recreate='always' drops the old parent table; a plain ADD COLUMN would not
+        "    with op.batch_alter_table('parent', recreate='always') as b:\n"
         "        b.add_column(sa.Column('note', sa.String))\n"
     )
     url = _url(tmp_path / "data.db")

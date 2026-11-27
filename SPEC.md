@@ -107,6 +107,8 @@ Both thresholds live in settings. The UI shows per-category progress: "Learning 
 ### 2.3 LLM provider chain
 - Order: **Groq (primary) → Cerebras → Gemini**. Move to the next provider on 429, 5xx, timeout (8 s), or
   invalid JSON after one repair retry.
+- One chat request also has an overall deadline (`deadline_s`, 12 s): after it, no further provider or
+  repair call is made, and each request waits at most for the time left.
 - All providers are called through the OpenAI-compatible chat-completions format; base URL, model id and
   key come from config.
 - Default model ids are in `config/llm.toml` and **must be verified against each provider's current docs
@@ -122,6 +124,7 @@ Both thresholds live in settings. The UI shows per-category progress: "Learning 
 2. **LLM path:** everything else goes to the parser with the system prompt in `chat/prompts/parse_task.md`,
    the list of categories and part types, and up to 10 recent correction examples (few-shot from the user's own fixes).
 3. Output is an **intent**: `create_task | update_task | stop_with_outcome | retro_log | plan_check | question | unknown`.
+S2 handles `create_task`, `question` and `unknown`; the other intents are recognised and answered "not available yet".
 4. Anything that creates or changes data is shown as a card and needs confirmation (except fast-path timer commands).
 
 ### 2.5 Timer state machine
@@ -176,12 +179,14 @@ Seed categories: `DSA`, `Theory subject`, `Assignment`, `Project coding`, `Admin
 - `estimate_min` is null if the user gave no guess → the card asks for one (it is required to start).
 - Multiple tasks in one message go into `extra_tasks`; tentative ones are flagged.
 - `clarifying_question` is used only when a required field is missing.
+- Code guard (ADR 0004): durations are parsed from the user's text (English, Hinglish, Devanagari). `estimate_min` is kept only if it equals one of them and that mention is not just a video's length; otherwise it is null. Titles lose durations the user did not write, and correction examples sent to the LLM show an estimate only under the same rule.
 
 ### 3.3 REST API (all JSON, prefix `/api`)
 | Method & path | Purpose |
 |---|---|
 | `GET /health` | liveness + DB + version |
-| `POST /chat` | `{text}` → `{intent, card?, reply, task_id?}` |
+| `POST /chat` | `{text}` → `{intent, reply, cards[], parsed, parse_json}`; each card is a valid `POST /tasks` body |
+| `POST /corrections` | `{raw_text, llm_output_json, corrected_json}`, sent when a card was edited before confirm |
 | `POST /tasks` | create from confirmed card |
 | `PATCH /tasks/{id}` | edit fields / parts |
 | `POST /tasks/{id}/start` · `/pause` · `/resume` | timer control. `start`/`resume` return 409 `{detail, running_task_id}` when another task is running. `pause` takes optional `{at}` |
