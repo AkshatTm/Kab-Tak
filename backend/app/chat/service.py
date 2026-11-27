@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import Engine
 from sqlmodel import col, select
 
+from app.chat.durations import stated_estimate
 from app.chat.schema import ParsedTask, ParseResult
 from app.db.models import Category, Correction, PartType
 from app.db.session import session_scope
@@ -142,15 +143,29 @@ def _system_prompt(
     part_keys = {p.id: p.key for p in part_types}
     # In the system prompt, not as assistant turns: a corrected card is not the output schema.
     examples = "\n\n".join(
-        f"Input: {json.dumps(c.raw_text[:_EXAMPLE_MAX], ensure_ascii=False)}\n"
-        f"Corrected: "
-        f"{json.dumps(_named(c.corrected_json, category_names, part_keys), ensure_ascii=False)}"
+        _example(c.raw_text[:_EXAMPLE_MAX], c.corrected_json, category_names, part_keys)
         for c in corrections
     )
     return (
         f"{prompt}\n## The user's own fixes, newest first\n"
         "Learn the preferred values from these. Always answer in the output schema above.\n\n"
         f"{examples}\n"
+    )
+
+
+def _example(
+    text: str,
+    card: dict[str, Any],
+    category_names: dict[str, str],
+    part_keys: dict[str, str],
+) -> str:
+    fixed = _named(card, category_names, part_keys)
+    # ADR 0004: an estimate typed on the card must not teach the model to invent one
+    videos = [p["quantity"] for p in fixed["parts"] if p["type"] == "video_watch"]
+    fixed["estimate_min"] = stated_estimate(fixed["estimate_min"], text, videos)
+    return (
+        f"Input: {json.dumps(text, ensure_ascii=False)}\n"
+        f"Corrected: {json.dumps(fixed, ensure_ascii=False)}"
     )
 
 

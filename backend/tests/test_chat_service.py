@@ -339,3 +339,35 @@ def test_huge_stored_correction_does_not_bloat_the_prompt(engine: Engine) -> Non
     completer = FakeCompleter(ParseResult(intent="unknown"))
     ChatService(engine, completer).parse("hello")
     assert len(completer.messages[0]["content"]) < 15_000
+
+
+def _example_shown(engine: Engine, raw_text: str, **card: Any) -> str:
+    with session_scope(engine) as s:
+        s.add(
+            Correction(
+                raw_text=raw_text,
+                llm_output_json={},
+                corrected_json={"title": "t", **card},
+                created_at=datetime(2026, 1, 1, tzinfo=UTC),
+            )
+        )
+    completer = FakeCompleter(ParseResult(intent="unknown"))
+    ChatService(engine, completer).parse("hello")
+    return completer.messages[0]["content"].split("## The user's own fixes")[1]
+
+
+def test_few_shot_hides_an_estimate_the_text_never_said(engine: Engine) -> None:
+    shown = _example_shown(engine, "solve the graph sheet", estimate_min=45)
+    assert '"estimate_min": null' in shown and "45" not in shown
+
+
+def test_few_shot_keeps_an_estimate_the_text_said(engine: Engine) -> None:
+    shown = _example_shown(engine, "graph sheet, 1 hour", estimate_min=60)
+    assert '"estimate_min": 60' in shown
+
+
+def test_few_shot_hides_a_video_length_used_as_estimate(engine: Engine) -> None:
+    _, parts = ids(engine)
+    video = [{"part_type_id": parts["video_watch"], "planned_qty": 25}]
+    shown = _example_shown(engine, "watch a 25 min video", estimate_min=25, parts=video)
+    assert '"estimate_min": null' in shown
