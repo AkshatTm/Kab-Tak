@@ -19,13 +19,15 @@ class ProviderConfig:
 
 @dataclass(frozen=True)
 class LlmConfig:
-    timeout_s: float
+    timeout_s: float  # per request
+    deadline_s: float  # for the whole chain, repairs included
     providers: tuple[ProviderConfig, ...]  # fallback order (ADR 0002)
 
 
 def load_config(path: Path | None = None) -> LlmConfig:
     data = tomllib.loads((path or _ROOT / "config" / "llm.toml").read_text(encoding="utf-8"))
-    return LlmConfig(data["timeout_s"], tuple(ProviderConfig(**p) for p in data["providers"]))
+    providers = tuple(ProviderConfig(**p) for p in data["providers"])
+    return LlmConfig(data["timeout_s"], data["deadline_s"], providers)
 
 
 class ProviderKeys(BaseSettings):

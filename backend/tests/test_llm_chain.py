@@ -19,6 +19,7 @@ from app.llm.config import LlmConfig, ProviderConfig, ProviderKeys, load_config
 KEYS = {"a": "sk-secret-aaa", "b": "sk-secret-bbb", "c": "sk-secret-ccc"}
 CONFIG = LlmConfig(
     timeout_s=8,
+    deadline_s=12,
     providers=(
         ProviderConfig("a", "https://a.test/v1", "model-a", "GROQ_API_KEY"),
         ProviderConfig("b", "https://b.test/v1", "model-b", "CEREBRAS_API_KEY"),
@@ -282,7 +283,7 @@ def test_db_errors_are_not_swallowed(tmp_path: Path) -> None:
 
 def test_real_config_file() -> None:
     config = load_config()
-    assert config.timeout_s == 8
+    assert (config.timeout_s, config.deadline_s) == (8, 12)
     assert [p.name for p in config.providers] == ["groq", "cerebras", "gemini"]
     assert [p.key_env for p in config.providers] == [
         "GROQ_API_KEY",
@@ -295,12 +296,12 @@ def test_real_config_file() -> None:
 def test_load_config_path_override(tmp_path: Path) -> None:
     path = tmp_path / "llm.toml"
     path.write_text(
-        'timeout_s = 3\n[[providers]]\nname = "x"\nbase_url = "https://x.test"\n'
+        'timeout_s = 3\ndeadline_s = 4\n[[providers]]\nname = "x"\nbase_url = "https://x.test"\n'
         'model = "m"\nkey_env = "GROQ_API_KEY"\n',
         encoding="utf-8",
     )
     assert load_config(path) == LlmConfig(
-        3, (ProviderConfig("x", "https://x.test", "m", "GROQ_API_KEY"),)
+        3, 4, (ProviderConfig("x", "https://x.test", "m", "GROQ_API_KEY"),)
     )
 
 
@@ -369,3 +370,53 @@ def test_odd_choices_shape_falls_through_to_the_next_provider(
     result = chain.complete_json([{"role": "user", "content": "x"}], ParseResult)
     assert result is not None and result.intent == "unknown"
     engine.dispose()
+
+
+class SlowScript(Script):
+    """Every reply takes `seconds` on a fake clock."""
+
+    def __init__(self, seconds: float, **steps: list[Step]) -> None:
+        super().__init__(**steps)
+        self.seconds = seconds
+        self.now = 100.0
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.now += self.seconds
+        return super().__call__(request)
+
+
+def run_slow(script: SlowScript, engine: Engine) -> Answer | None:
+    with httpx.Client(transport=httpx.MockTransport(script)) as client:
+        chain = LlmChain(CONFIG, keys(), engine, client, clock=lambda: script.now)
+        return chain.complete_json(MESSAGES, Answer)
+
+
+def test_deadline_stops_the_chain_before_the_next_provider(engine: Engine) -> None:
+    script = SlowScript(7, a=[httpx.Response(500)], b=[httpx.Response(500)], c=[completion(GOOD)])
+    assert run_slow(script, engine) is None
+    assert script.hosts() == ["a", "b"]
+    assert len(rows(engine)) == 2
+
+
+def test_deadline_skips_the_repair_call(engine: Engine) -> None:
+    script = SlowScript(13, a=[completion("nope"), completion(GOOD)])
+    assert run_slow(script, engine) is None
+    assert script.hosts() == ["a"]
+
+
+def test_a_request_never_waits_past_the_deadline(engine: Engine) -> None:
+    script = SlowScript(7, a=[httpx.Response(500)], b=[completion(GOOD)])
+    assert run_slow(script, engine) == Answer(answer=42)
+    assert [r.extensions["timeout"]["read"] for r in script.requests] == [8, 5]
+
+
+def test_logged_errors_are_capped_after_redaction(engine: Engine) -> None:
+    # the SDK keeps provider bodies short, so feed the logger directly; the key straddles
+    # the cut: truncating before redacting would leave half of it in the row
+    chain = LlmChain(CONFIG, keys(), engine)
+    for padding in range(485, 501, 3):
+        error = "x" * padding + KEYS["a"] + "y" * 2000
+        chain._log(CONFIG.providers[0], 0.0, error)
+    errors = [r.error for r in rows(engine) if r.error]
+    assert [len(e) for e in errors] == [500] * 6
+    assert not any("sk-" in e for e in errors)

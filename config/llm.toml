@@ -1,5 +1,6 @@
 # LLM provider chain (ADR 0002). Order is fixed: Groq -> Cerebras -> Gemini.
 timeout_s = 8
+deadline_s = 12
 
 [[providers]]
 # verified 2026-11-25: https://console.groq.com/docs/models, /docs/openai

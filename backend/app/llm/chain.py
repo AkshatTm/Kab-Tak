@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, TypeVar, cast
 
@@ -18,6 +19,7 @@ if TYPE_CHECKING:
 T = TypeVar("T", bound=BaseModel)
 
 Messages = list[dict[str, str]]
+_ERROR_MAX = 500
 
 
 class LlmChain:
@@ -29,7 +31,10 @@ class LlmChain:
         keys: ProviderKeys,
         engine: Engine,
         http_client: httpx.Client | None = None,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
+        self._timeout_s, self._deadline_s = config.timeout_s, config.deadline_s
+        self._clock = clock
         self._engine = engine
         self._keys = keys  # stays masked; plaintext is read only to build clients and redact
         # providers without a key are skipped
@@ -39,7 +44,6 @@ class LlmChain:
                 openai.OpenAI(
                     api_key=keys.get(p.key_env),
                     base_url=p.base_url,
-                    timeout=config.timeout_s,
                     max_retries=0,
                     http_client=cast(Any, http_client),
                 ),
@@ -52,16 +56,26 @@ class LlmChain:
         return bool(self._providers)
 
     def complete_json(self, messages: Messages, schema: type[T]) -> T | None:
-        """None when every provider fails. Database errors from call logging propagate."""
+        """None when every provider fails or the deadline passes.
+
+        Database errors from call logging propagate.
+        """
+        deadline = self._clock() + self._deadline_s
         for provider, client in self._providers:
             conversation = messages
             for _ in range(2):  # the call, then one repair
+                remaining = deadline - self._clock()
+                if remaining <= 0:
+                    return None
                 started = time.perf_counter()
                 try:
                     completion = client.chat.completions.create(
                         model=provider.model,
                         messages=cast(Any, conversation),
                         response_format={"type": "json_object"},
+                        # shortcut: httpx times out per read, so a trickling reply can
+                        # outlast this; cancel from a worker thread if that happens
+                        timeout=min(self._timeout_s, remaining),
                     )
                 # ValueError: a 200 whose body claims to be JSON and is not
                 except (openai.APIError, ValueError) as exc:
@@ -107,6 +121,7 @@ class LlmChain:
             # every configured key, not only this provider's: a reply can quote any of them
             for p, _ in self._providers:
                 error = error.replace(self._keys.get(p.key_env), "***")
+            error = error[:_ERROR_MAX]  # cut after redacting, or half a key survives
         usage = getattr(completion, "usage", None)
         with session_scope(self._engine) as session:
             session.add(

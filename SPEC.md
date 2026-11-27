@@ -107,6 +107,8 @@ Both thresholds live in settings. The UI shows per-category progress: "Learning 
 ### 2.3 LLM provider chain
 - Order: **Groq (primary) → Cerebras → Gemini**. Move to the next provider on 429, 5xx, timeout (8 s), or
   invalid JSON after one repair retry.
+- One chat request also has an overall deadline (`deadline_s`, 12 s): after it, no further provider or
+  repair call is made, and each request waits at most for the time left.
 - All providers are called through the OpenAI-compatible chat-completions format; base URL, model id and
   key come from config.
 - Default model ids are in `config/llm.toml` and **must be verified against each provider's current docs
